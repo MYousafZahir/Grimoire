@@ -1,0 +1,938 @@
+#!/usr/bin/env bash
+
+# Grimoire Launcher Script
+# One-command setup and launch for the semantic notes app
+# Sets up Python backend, installs dependencies, and launches the macOS app
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Configuration
+BACKEND_PORT=8000
+BACKEND_HOST="127.0.0.1"
+BACKEND_URL="http://${BACKEND_HOST}:${BACKEND_PORT}"
+APP_NAME="Grimoire"
+VERSION="1.0.0"
+
+# Paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="${SCRIPT_DIR}/backend"
+MACOS_APP_DIR="${SCRIPT_DIR}/macos-app"
+VENV_DIR="${BACKEND_DIR}/venv"
+STORAGE_DIR="${BACKEND_DIR}/storage"
+NOTES_DIR="${STORAGE_DIR}/notes"
+EMBEDDINGS_DIR="${STORAGE_DIR}/embeddings"
+LOG_FILE="${SCRIPT_DIR}/grimoire.log"
+
+# Functions for pretty output
+print_header() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BLUE}$1${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
+}
+
+# Clean up old virtual environment if it has issues
+cleanup_old_venv() {
+    if [ -d "$VENV_DIR" ]; then
+        print_step "Checking existing virtual environment..."
+
+        # Check if venv is valid
+        if [ ! -f "${VENV_DIR}/bin/activate" ]; then
+            print_warning "Virtual environment is corrupted (missing activate script)"
+            rm -rf "$VENV_DIR"
+            return
+        fi
+
+        # Try to activate and check Python
+        source "${VENV_DIR}/bin/activate" 2>/dev/null
+        if ! python3 -c "import sys; print(sys.version)" >/dev/null 2>&1; then
+            print_warning "Virtual environment has Python issues"
+            rm -rf "$VENV_DIR"
+            return
+        fi
+
+        # Check for faiss-cpu specifically (common issue)
+        if python3 -c "import faiss" 2>/dev/null; then
+            print_step "Existing virtual environment looks good"
+        else
+            print_warning "FAISS not found in existing venv, may need update"
+            # Don't delete here, let the dependency installer handle it
+        fi
+
+        deactivate 2>/dev/null || true
+    fi
+}
+
+print_step() {
+    echo -e "${GREEN}✓${NC} ${YELLOW}$1${NC}"
+}
+
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ $1${NC}"
+}
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+# Check for required tools
+check_requirements() {
+    print_header "Checking System Requirements"
+
+    # Check macOS version
+    if [[ "$(uname)" != "Darwin" ]]; then
+        print_error "This script is for macOS only"
+        exit 1
+    fi
+
+    MACOS_VERSION=$(sw_vers -productVersion)
+    print_step "macOS Version: $MACOS_VERSION"
+
+    # Check Python
+    if ! command -v python3 &> /dev/null; then
+        print_error "Python 3 is not installed. Please install Python 3.11 or later."
+        print_info "You can install it from https://www.python.org/downloads/"
+        exit 1
+    fi
+
+    PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")')
+    print_step "Python Version: $PYTHON_VERSION"
+
+    # Check Xcode command line tools
+    if ! xcode-select -p &> /dev/null; then
+        print_warning "Xcode command line tools are not installed"
+        print_info "Installing Xcode command line tools..."
+        xcode-select --install
+        print_info "Please complete the Xcode installation and run this script again"
+        exit 1
+    fi
+
+    print_step "Xcode command line tools: Installed"
+
+    # Check if we can create virtual environment
+    if ! python3 -c "import venv" &> /dev/null; then
+        print_error "Python venv module is not available"
+        print_info "Please ensure Python is properly installed"
+        exit 1
+    fi
+
+    print_success "All system requirements satisfied"
+}
+
+# Setup Python virtual environment
+setup_virtualenv() {
+    print_header "Setting Up Python Environment"
+
+    if [ -d "$VENV_DIR" ]; then
+        print_step "Virtual environment already exists"
+        # Check if it's still valid
+        if [ -f "${VENV_DIR}/bin/activate" ]; then
+            print_success "Using existing virtual environment"
+            return 0
+        else
+            print_warning "Virtual environment appears corrupted, recreating..."
+            rm -rf "$VENV_DIR"
+        fi
+    fi
+
+    print_step "Creating virtual environment..."
+    python3 -m venv "$VENV_DIR"
+
+    if [ ! -f "${VENV_DIR}/bin/activate" ]; then
+        print_error "Failed to create virtual environment"
+        exit 1
+    fi
+
+    print_success "Virtual environment created at: $VENV_DIR"
+}
+
+# Install Python dependencies
+install_python_deps() {
+    print_header "Installing Python Dependencies"
+
+    # Activate virtual environment
+    source "${VENV_DIR}/bin/activate"
+
+    # Upgrade pip
+    print_step "Upgrading pip..."
+    if ! pip install --upgrade pip >> "$LOG_FILE" 2>&1; then
+        print_warning "Failed to upgrade pip, continuing anyway..."
+    fi
+
+    # Check if requirements.txt exists
+    if [ ! -f "${BACKEND_DIR}/requirements.txt" ]; then
+        print_error "requirements.txt not found in ${BACKEND_DIR}"
+        exit 1
+    fi
+
+    # Install requirements with retry logic
+    print_step "Installing dependencies from requirements.txt..."
+
+    MAX_RETRIES=2
+    RETRY_COUNT=0
+
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if pip install -r "${BACKEND_DIR}/requirements.txt" >> "$LOG_FILE" 2>&1; then
+            print_success "Python dependencies installed successfully"
+            break
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                print_warning "Dependency installation failed, retrying ($RETRY_COUNT/$MAX_RETRIES)..."
+                # Sometimes cleaning pip cache helps
+                pip cache purge >> "$LOG_FILE" 2>&1 || true
+                sleep 2
+            else
+                print_error "Failed to install Python dependencies after $MAX_RETRIES attempts"
+                print_info "Check $LOG_FILE for details"
+
+                # Check for specific faiss-cpu error
+                if grep -q "faiss-cpu" "$LOG_FILE" && grep -q "No matching distribution found" "$LOG_FILE"; then
+                    print_info "Detected faiss-cpu compatibility issue"
+                    print_info "Trying to recreate virtual environment with updated Python version..."
+
+                    # Recreate venv and try one more time
+                    rm -rf "$VENV_DIR"
+                    python3 -m venv "$VENV_DIR"
+                    source "${VENV_DIR}/bin/activate"
+
+                    if pip install -r "${BACKEND_DIR}/requirements.txt" >> "$LOG_FILE" 2>&1; then
+                        print_success "Python dependencies installed successfully after recreating venv"
+                        return 0
+                    fi
+                fi
+
+                exit 1
+            fi
+        fi
+    done
+
+    # Test critical imports
+    print_step "Testing critical imports..."
+    if python3 -c "
+import sys
+sys.path.insert(0, '${BACKEND_DIR}')
+try:
+    import fastapi
+    import sentence_transformers
+    import faiss
+    import numpy
+    print('All critical imports successful')
+except ImportError as e:
+    print(f'Import error: {e}')
+    sys.exit(1)
+" >> "$LOG_FILE" 2>&1; then
+        print_success "All critical packages are importable"
+    else
+        print_error "Some packages failed to import"
+        print_info "Trying to fix by reinstalling..."
+
+        # Try to reinstall with --force-reinstall
+        pip install --force-reinstall -r "${BACKEND_DIR}/requirements.txt" >> "$LOG_FILE" 2>&1 || {
+            print_error "Failed to fix imports after reinstallation"
+            exit 1
+        }
+
+        print_success "Imports fixed after reinstallation"
+    fi
+}
+
+# Setup storage directories
+setup_storage() {
+    print_header "Setting Up Storage Directories"
+
+    # Create directories
+    for dir in "$STORAGE_DIR" "$NOTES_DIR" "$EMBEDDINGS_DIR"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            print_step "Created directory: $dir"
+        else
+            print_step "Directory exists: $dir"
+        fi
+    done
+
+    # Create sample notes if none exist
+    if [ ! -f "${NOTES_DIR}/welcome.md" ]; then
+        print_step "Creating sample welcome note..."
+        cat > "${NOTES_DIR}/welcome.md" << 'EOF'
+# Welcome to Grimoire
+
+This is your first note in Grimoire, a semantic notes app for macOS.
+
+## What is Grimoire?
+
+Grimoire is a note-taking application that automatically creates semantic links between your notes. Unlike traditional note-taking apps that require manual linking, Grimoire analyzes the content of your notes and finds connections for you.
+
+## Key Features
+
+### Semantic Backlinks
+As you type, Grimoire searches through all your notes to find semantically related content. These "backlinks" appear in real-time, showing you connections you might not have noticed.
+
+### Excerpt-Level Linking
+Instead of just linking to entire notes, Grimoire can link to specific passages within notes. This allows for more precise connections between ideas.
+
+### Nested Hierarchy
+Organize your notes in a tree structure. Create parent notes, child notes, and build a knowledge base that matches your thinking.
+
+### Markdown Support
+Write in markdown for rich formatting. Grimoire supports all standard markdown syntax.
+
+## Getting Started
+
+1. **Create a new note** by clicking the "+" button in the sidebar
+2. **Start typing** - backlinks will appear automatically
+3. **Click on backlinks** to jump to related content
+4. **Use markdown** for formatting (headers, lists, bold, italic, etc.)
+
+## Example Topics to Write About
+
+- Project ideas and plans
+- Learning notes and summaries
+- Meeting notes and decisions
+- Personal journal entries
+- Research findings
+- Creative writing
+- Code snippets and documentation
+
+## Tips for Effective Use
+
+- **Write naturally** - Grimoire works best when you write in complete sentences
+- **Use descriptive titles** - This helps with organization and search
+- **Don't worry about linking** - The semantic engine handles connections automatically
+- **Review backlinks regularly** - They can reveal unexpected connections between ideas
+
+## Privacy
+
+All your data stays on your machine. Grimoire doesn't send anything to the cloud - the semantic search happens locally using sentence-transformers and FAISS.
+
+Happy note-taking!
+EOF
+        print_success "Sample welcome note created"
+    fi
+
+    # Create a second sample note
+    if [ ! -f "${NOTES_DIR}/getting-started.md" ]; then
+        print_step "Creating sample 'Getting Started' note..."
+        cat > "${NOTES_DIR}/getting-started.md" << 'EOF'
+# Getting Started with Grimoire
+
+This note will help you understand how to make the most of Grimoire's semantic features.
+
+## How Semantic Backlinks Work
+
+1. **Real-time Analysis**: As you type, Grimoire analyzes your text and compares it with all other notes
+2. **Semantic Similarity**: Using machine learning embeddings, it finds content with similar meaning
+3. **Excerpt-Level Matching**: Shows specific passages that relate to what you're writing
+4. **Dynamic Updates**: Backlinks update automatically as you continue typing
+
+## Best Practices
+
+### Writing for Semantic Search
+- Write in complete sentences for better semantic understanding
+- Use specific terminology related to your topics
+- Include context and explanations
+- The more you write, the better the connections become
+
+### Organizing Your Notes
+- Use the nested folder structure for logical organization
+- Create notes for different topics or projects
+- Don't worry about perfect organization - the semantic search will find connections regardless
+
+### Using Backlinks
+- Click on backlinks to explore related content
+- Use backlinks to discover forgotten connections
+- Let backlinks guide your research and writing
+
+## Example Workflow
+
+1. **Morning Planning**: Create a note for your daily plan
+2. **Meeting Notes**: Take notes during meetings
+3. **Research**: Create notes from articles or papers you read
+4. **Ideas**: Jot down ideas as they come to you
+5. **Review**: Use backlinks to see how different notes connect
+
+## Advanced Tips
+
+- Create notes with similar structure for consistent results
+- Use markdown headers to organize longer notes
+- The semantic engine improves as you add more content
+- Don't delete notes - even old notes contribute to the semantic network
+
+## Need Help?
+
+Check the welcome note for basic instructions, or just start writing! The best way to learn Grimoire is to use it.
+EOF
+        print_success "Sample 'Getting Started' note created"
+    fi
+
+    print_success "Storage directories setup complete"
+}
+
+# Pre-download sentence-transformers model
+download_model() {
+    print_header "Preparing Semantic Model"
+
+    source "${VENV_DIR}/bin/activate"
+
+    print_step "Checking for sentence-transformers model..."
+
+    # Try to load the model to trigger download if needed
+    if python3 -c "
+import sys
+import os
+sys.path.insert(0, '${BACKEND_DIR}')
+
+try:
+    from embedder import Embedder
+    print('Testing model loading...')
+    embedder = Embedder()
+    embedder.load_model()
+    print('Model is ready')
+except Exception as e:
+    print(f'Model check: {e}')
+    print('The model will be downloaded when first used')
+    sys.exit(0)
+" >> "$LOG_FILE" 2>&1; then
+        print_success "Semantic model is ready"
+    else
+        print_warning "Model will be downloaded on first use (this may take a few minutes)"
+        print_info "The first search might be slow while the model downloads"
+    fi
+}
+
+# Start backend server
+start_backend() {
+    print_header "Starting Backend Server"
+
+    # Check if backend is already running
+    if curl -s "http://${BACKEND_HOST}:${BACKEND_PORT}" > /dev/null 2>&1; then
+        print_step "Backend is already running on port ${BACKEND_PORT}"
+        return 0
+    fi
+
+    source "${VENV_DIR}/bin/activate"
+
+    print_step "Starting FastAPI server on ${BACKEND_URL}"
+    print_info "API Docs: ${BACKEND_URL}/docs"
+    print_info "OpenAPI: ${BACKEND_URL}/openapi.json"
+
+    # Start backend in background using uvicorn directly
+    cd "$BACKEND_DIR"
+    source "${VENV_DIR}/bin/activate"
+
+    # Start uvicorn server
+    uvicorn main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" --reload >> "$LOG_FILE" 2>&1 &
+    BACKEND_PID=$!
+
+    echo "$BACKEND_PID" > "${SCRIPT_DIR}/backend.pid"
+
+    # Wait for server to start
+    print_step "Waiting for server to start..."
+    for i in {1..30}; do
+        if curl -s "http://${BACKEND_HOST}:${BACKEND_PORT}" > /dev/null 2>&1; then
+            print_success "Backend server started successfully (PID: $BACKEND_PID)"
+            return 0
+        fi
+
+        # Check if process is still running
+        if [ -n "$BACKEND_PID" ] && ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            print_error "Backend process died (PID: $BACKEND_PID)"
+            print_info "Check $LOG_FILE for error details"
+            rm -f "${SCRIPT_DIR}/backend.pid"
+            return 1
+        fi
+
+        sleep 1
+        echo -n "."
+    done
+
+    print_error "Backend server failed to start within 30 seconds"
+
+    # Try to get error from log
+    if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+        print_warning "Server process is running but not responding on port ${BACKEND_PORT}"
+        print_info "Checking if port is in use..."
+        if lsof -ti:${BACKEND_PORT} >/dev/null 2>&1; then
+            print_info "Port ${BACKEND_PORT} is in use by another process"
+            print_info "Trying alternative port..."
+            BACKEND_PORT=$((BACKEND_PORT + 1))
+            BACKEND_URL="http://${BACKEND_HOST}:${BACKEND_PORT}"
+            print_info "New backend URL: ${BACKEND_URL}"
+            # Kill the old process and retry
+            kill "$BACKEND_PID" 2>/dev/null || true
+            rm -f "${SCRIPT_DIR}/backend.pid"
+            start_backend
+            return $?
+        fi
+    fi
+
+    print_info "Check $LOG_FILE for error details"
+    exit 1
+}
+
+# Setup macOS app
+setup_macos_app() {
+    print_header "Setting Up macOS Application"
+
+    # Check if Xcode project exists
+    if [ -f "${MACOS_APP_DIR}/Grimoire.xcodeproj/project.pbxproj" ]; then
+        print_step "Xcode project already exists"
+        return 0
+    fi
+
+    # Check if we have the create_xcode_project.sh script
+    if [ ! -f "${MACOS_APP_DIR}/create_xcode_project.sh" ]; then
+        print_error "Xcode project creation script not found"
+        print_info "Creating basic Xcode project structure..."
+
+        # Create minimal Xcode project structure
+        mkdir -p "${MACOS_APP_DIR}/Grimoire.xcodeproj"
+        mkdir -p "${MACOS_APP_DIR}/Grimoire/Resources"
+
+        # Create Info.plist
+        cat > "${MACOS_APP_DIR}/Grimoire/Resources/Info.plist" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.grimoire.app</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Grimoire</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2024 Grimoire. All rights reserved.</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+</dict>
+</plist>
+EOF
+
+        print_warning "Basic Xcode project structure created"
+        print_info "You may need to create the Xcode project manually in Xcode"
+        return 0
+    fi
+
+    # Make the script executable and run it
+    print_step "Creating Xcode project..."
+    chmod +x "${MACOS_APP_DIR}/create_xcode_project.sh"
+
+    cd "$MACOS_APP_DIR"
+    if ./create_xcode_project.sh >> "$LOG_FILE" 2>&1; then
+        print_success "Xcode project created successfully"
+    else
+        print_warning "Xcode project creation had issues"
+        print_info "You may need to create the project manually in Xcode"
+    fi
+}
+
+# Launch macOS app
+launch_macos_app() {
+    print_header "Launching Grimoire Application"
+
+    # Check for existing Grimoire.app
+    if [ -d "${MACOS_APP_DIR}/Grimoire.app" ]; then
+        print_step "Found existing Grimoire.app"
+        APP_PATH="${MACOS_APP_DIR}/Grimoire.app"
+    elif [ -f "${MACOS_APP_DIR}/build.sh" ]; then
+        print_step "Building Grimoire using build script..."
+
+        # Make build script executable
+        chmod +x "${MACOS_APP_DIR}/build.sh"
+
+        # Run build script
+        cd "$MACOS_APP_DIR"
+        if ./build.sh >> "$LOG_FILE" 2>&1; then
+            if [ -d "Grimoire.app" ]; then
+                APP_PATH="${MACOS_APP_DIR}/Grimoire.app"
+                print_success "App built successfully using build script"
+            else
+                print_warning "Build script succeeded but Grimoire.app not found"
+                print_info "Please check $LOG_FILE for details"
+                return 1
+            fi
+        else
+            print_warning "Build script failed"
+            print_info "Please check $LOG_FILE for details"
+            print_info "You can also try building manually:"
+            print_info "  cd macos-app && open Grimoire.xcodeproj"
+            return 1
+        fi
+    elif [ -d "${MACOS_APP_DIR}/Grimoire.xcodeproj" ]; then
+        print_step "Building Grimoire from Xcode project..."
+
+        # Create build script if it doesn't exist
+        if [ ! -f "${MACOS_APP_DIR}/build.sh" ]; then
+            print_step "Creating build script..."
+            cat > "${MACOS_APP_DIR}/build.sh" << 'EOF'
+#!/bin/bash
+# Simple build script for Grimoire
+set -e
+echo "Building Grimoire..."
+xcodebuild -project Grimoire.xcodeproj -scheme Grimoire -configuration Debug -derivedDataPath ./Build
+if [ -d "Build/Build/Products/Debug/Grimoire.app" ]; then
+    cp -R "Build/Build/Products/Debug/Grimoire.app" .
+    echo "Build successful!"
+else
+    echo "Build succeeded but app not found"
+    exit 1
+fi
+EOF
+            chmod +x "${MACOS_APP_DIR}/build.sh"
+        fi
+
+        # Try to build using the script
+        cd "$MACOS_APP_DIR"
+        if ./build.sh >> "$LOG_FILE" 2>&1; then
+            if [ -d "Grimoire.app" ]; then
+                APP_PATH="${MACOS_APP_DIR}/Grimoire.app"
+                print_success "App built successfully"
+            else
+                print_warning "App built but not found at expected location"
+                print_info "Please open Grimoire.xcodeproj in Xcode and build manually"
+                return 1
+            fi
+        else
+            print_warning "Failed to build app"
+            print_info "Please open Grimoire.xcodeproj in Xcode and build manually"
+            return 1
+        fi
+    else
+        print_error "No Grimoire.app found and no build system available"
+        print_info "Please check the macos-app directory structure"
+        print_info "Expected: build.sh or Grimoire.xcodeproj"
+        return 1
+    fi
+
+    # Launch the app
+    print_step "Launching Grimoire..."
+    if open "$APP_PATH"; then
+        print_success "Grimoire launched successfully!"
+        print_info "The app will connect to the backend at ${BACKEND_URL}"
+        print_info "Check the backlinks panel to see semantic connections"
+    else
+        print_error "Failed to launch Grimoire"
+        return 1
+    fi
+}
+
+# Check backend health
+check_backend_health() {
+    print_header "Checking Backend Health"
+
+    print_step "Testing backend connection..."
+    if curl -s "${BACKEND_URL}" > /dev/null 2>&1; then
+        print_success "Backend is responding"
+
+        # Test API endpoints
+        print_step "Testing API endpoints..."
+
+        # Test /all-notes
+        if curl -s "${BACKEND_URL}/all-notes" > /dev/null 2>&1; then
+            print_success "✓ /all-notes endpoint working"
+        else
+            print_warning "⚠ /all-notes endpoint not responding"
+        fi
+
+        # Test note retrieval
+        if curl -s "${BACKEND_URL}/note/welcome" > /dev/null 2>&1; then
+            print_success "✓ Note retrieval working"
+        else
+            print_warning "⚠ Note retrieval not working"
+        fi
+
+    else
+        print_error "Backend is not responding"
+        return 1
+    fi
+}
+
+# Show usage information
+show_usage() {
+    print_header "Grimoire Launcher - Version ${VERSION}"
+
+    echo -e "${BLUE}Usage:${NC}"
+    echo -e "  ./grimoire [command]"
+    echo -e ""
+    echo -e "${BLUE}Commands:${NC}"
+    echo -e "  ${GREEN}setup${NC}        - Setup environment and dependencies only"
+    echo -e "  ${GREEN}backend${NC}      - Start backend server only"
+    echo -e "  ${GREEN}app${NC}          - Launch macOS app only (backend must be running)"
+    echo -e "  ${GREEN}stop${NC}         - Stop backend server"
+    echo -e "  ${GREEN}status${NC}       - Check status of backend and app"
+    echo -e "  ${GREEN}reset${NC}        - Reset all data and start fresh"
+    echo -e "  ${GREEN}help${NC}         - Show this help message"
+    echo -e "  ${GREEN}(no command)${NC} - Full setup and launch (default)"
+    echo -e ""
+    echo -e "${BLUE}Examples:${NC}"
+    echo -e "  ./grimoire               # Full setup and launch"
+    echo -e "  ./grimoire setup         # Setup only"
+    echo -e "  ./grimoire backend       # Start backend only"
+    echo -e "  ./grimoire stop          # Stop backend"
+    echo -e ""
+    echo -e "${BLUE}Logs:${NC} ${LOG_FILE}"
+    echo -e "${BLUE}Backend:${NC} ${BACKEND_URL}"
+    echo -e "${BLUE}Notes:${NC} ${NOTES_DIR}"
+}
+
+# Stop backend server
+stop_backend() {
+    print_header "Stopping Backend Server"
+
+    PID_FILE="${SCRIPT_DIR}/backend.pid"
+
+    if [ -f "$PID_FILE" ]; then
+        BACKEND_PID=$(cat "$PID_FILE")
+        if kill "$BACKEND_PID" 2>/dev/null; then
+            print_success "Stopped backend server (PID: $BACKEND_PID)"
+            rm -f "$PID_FILE"
+        else
+            print_warning "Backend server was not running (PID: $BACKEND_PID)"
+            rm -f "$PID_FILE"
+        fi
+    else
+        # Try to find and kill any running backend
+        if pgrep -f "python.*main.py" > /dev/null; then
+            pkill -f "python.*main.py"
+            print_success "Stopped backend server(s)"
+        else
+            print_info "Backend server is not running"
+        fi
+    fi
+}
+
+# Check status
+check_status() {
+    print_header "Grimoire Status"
+
+    # Check backend
+    print_step "Backend Server:"
+    if curl -s "${BACKEND_URL}" > /dev/null 2>&1; then
+        echo -e "  ${GREEN}✓ Running${NC} at ${BACKEND_URL}"
+
+        # Get backend info
+        BACKEND_INFO=$(curl -s "${BACKEND_URL}")
+        echo -e "  ${BLUE}Status:${NC} $(echo $BACKEND_INFO | grep -o '"status":"[^"]*"' | cut -d'"' -f4)"
+    else
+        echo -e "  ${RED}✗ Not running${NC}"
+    fi
+
+    # Check notes
+    print_step "Notes:"
+    NOTE_COUNT=$(find "$NOTES_DIR" -name "*.md" | wc -l | tr -d ' ')
+    echo -e "  ${BLUE}Count:${NC} $NOTE_COUNT notes"
+
+    # Check storage
+    print_step "Storage:"
+    echo -e "  ${BLUE}Notes:${NC} $NOTES_DIR"
+    echo -e "  ${BLUE}Embeddings:${NC} $EMBEDDINGS_DIR"
+
+    # Check app
+    print_step "macOS App:"
+    if pgrep -f "Grimoire" > /dev/null; then
+        echo -e "  ${GREEN}✓ Running${NC}"
+    else
+        echo -e "  ${YELLOW}⚠ Not running${NC}"
+    fi
+
+    # Check model
+    print_step "Semantic Model:"
+    if [ -d "${VENV_DIR}" ]; then
+        source "${VENV_DIR}/bin/activate"
+        if python3 -c "from sentence_transformers import SentenceTransformer; import os; model = SentenceTransformer('all-MiniLM-L6-v2'); print('Loaded')" 2>/dev/null; then
+            echo -e "  ${GREEN}✓ Ready${NC}"
+        else
+            echo -e "  ${YELLOW}⚠ Needs download on first use${NC}"
+        fi
+    else
+        echo -e "  ${RED}✗ Virtual environment not setup${NC}"
+    fi
+}
+
+# Reset everything
+reset_all() {
+    print_header "Resetting Grimoire"
+
+    read -p "Are you sure you want to reset everything? This will delete all notes and embeddings. [y/N]: " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Reset cancelled"
+        return
+    fi
+
+    # Stop backend
+    stop_backend
+
+    # Remove storage
+    print_step "Removing storage directories..."
+    rm -rf "$STORAGE_DIR"
+
+    # Remove virtual environment
+    print_step "Removing virtual environment..."
+    rm -rf "$VENV_DIR"
+
+    # Remove build artifacts
+    print_step "Cleaning build artifacts..."
+    rm -rf "${MACOS_APP_DIR}/Build" "${MACOS_APP_DIR}/Grimoire.xcodeproj" "${MACOS_APP_DIR}/Grimoire.app" 2>/dev/null
+
+    # Remove PID file
+    rm -f "${SCRIPT_DIR}/backend.pid"
+
+    print_success "Grimoire has been reset"
+    print_info "Run ./grimoire again to start fresh"
+}
+
+# Main execution
+main() {
+    # Create log file
+    > "$LOG_FILE"
+    log "Starting Grimoire launcher"
+
+    # Show banner
+    print_header "✨ Grimoire Launcher v${VERSION} ✨"
+
+    # Parse command
+    COMMAND=${1:-}
+
+    case "$COMMAND" in
+        setup)
+            check_requirements
+            cleanup_old_venv
+            setup_virtualenv
+            install_python_deps
+            setup_storage
+            download_model
+            setup_macos_app
+            print_success "Setup complete!"
+            print_info "Run './grimoire backend' to start the backend server"
+            print_info "Run './grimoire app' to launch the macOS app"
+            ;;
+
+        backend)
+            check_requirements
+            cleanup_old_venv
+            setup_virtualenv
+            install_python_deps
+            setup_storage
+            download_model
+            start_backend
+            check_backend_health
+            print_success "Backend is ready at ${BACKEND_URL}"
+            print_info "Run './grimoire app' to launch the macOS app"
+            print_info "Run './grimoire stop' to stop the backend"
+            ;;
+
+        app)
+            check_backend_health || {
+                print_error "Backend is not running"
+                print_info "Start it with: ./grimoire backend"
+                exit 1
+            }
+            launch_macos_app
+            ;;
+
+        stop)
+            stop_backend
+            ;;
+
+        status)
+            check_status
+            ;;
+
+        reset)
+            reset_all
+            ;;
+
+        help|--help|-h)
+            show_usage
+            ;;
+
+        "")
+            # Default: full setup and launch
+            check_requirements
+            cleanup_old_venv
+            setup_virtualenv
+            install_python_deps
+            setup_storage
+            download_model
+            setup_macos_app
+            start_backend
+
+            # Wait a moment for backend to fully initialize
+            sleep 2
+
+            check_backend_health || {
+                print_error "Backend health check failed"
+                print_info "Check $LOG_FILE for details"
+                exit 1
+            }
+
+            launch_macos_app
+
+            # Show final instructions
+            echo -e "\n${GREEN}══════════════════════════════════════════════════════════════${NC}"
+            print_success "Grimoire is now running!"
+            echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
+            echo -e ""
+            echo -e "${BLUE}Quick Start:${NC}"
+            echo -e "  1. Open the welcome note in Grimoire"
+            echo -e "  2. Start typing in the editor"
+            echo -e "  3. Watch backlinks appear in the right panel"
+            echo -e "  4. Click any backlink to jump to related content"
+            echo -e ""
+            echo -e "${BLUE}Backend:${NC} ${BACKEND_URL}/docs"
+            echo -e "${BLUE}Notes:${NC} ${NOTES_DIR}"
+            echo -e "${BLUE}Logs:${NC} ${LOG_FILE}"
+            echo -e ""
+            echo -e "${YELLOW}Press Ctrl+C in this terminal to stop the backend${NC}"
+            echo -e "${YELLOW}Run './grimoire stop' to stop the backend server${NC}"
+            echo -e ""
+
+            # Keep script running to manage backend
+            trap 'stop_backend; exit 0' INT TERM
+            wait
+            ;;
+
+        *)
+            print_error "Unknown command: $COMMAND"
+            show_usage
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function
+main "$@"
