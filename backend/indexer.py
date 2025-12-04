@@ -225,8 +225,23 @@ class Indexer:
             self.index = None
             return
 
-        # Get embedding dimension from first chunk
-        first_chunk = next(iter(self.metadata.values()))
+        # Filter metadata to only include entries with embeddings
+        valid_metadata = {}
+        for chunk_id, metadata in self.metadata.items():
+            if "embedding" in metadata and metadata["embedding"] is not None:
+                valid_metadata[chunk_id] = metadata
+            else:
+                print(
+                    f"Warning: Metadata for chunk {chunk_id} has no embedding, skipping"
+                )
+
+        if not valid_metadata:
+            self.index = None
+            print("Warning: No valid metadata with embeddings to rebuild index")
+            return
+
+        # Get embedding dimension from first valid chunk
+        first_chunk = next(iter(valid_metadata.values()))
         embedding_dim = len(first_chunk["embedding"])
 
         # Create new index
@@ -235,9 +250,9 @@ class Indexer:
 
             self.index = faiss.IndexFlatIP(embedding_dim)
 
-            # Add all embeddings
+            # Add all embeddings from valid metadata
             embeddings = []
-            for chunk_id, metadata in self.metadata.items():
+            for chunk_id, metadata in valid_metadata.items():
                 embedding = metadata["embedding"]
                 embeddings.append(embedding)
 
@@ -247,9 +262,11 @@ class Indexer:
             if embeddings:
                 embeddings_np = np.array(embeddings, dtype=np.float32)
                 self.index.add(embeddings_np)
+                print(f"Rebuilt index with {len(embeddings)} embeddings")
 
         except ImportError:
             self.index = None
+            print("Warning: FAISS not available, index not rebuilt")
 
     def _save_index(self):
         """Save the FAISS index to disk."""

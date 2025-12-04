@@ -322,6 +322,11 @@ struct NoteRow: View {
     @EnvironmentObject private var noteManager: NoteManager
 
     var body: some View {
+        // Debug logging
+        print(
+            "NoteRow DEBUG: \(noteInfo.title) - type: \(noteInfo.type ?? "nil"), children count: \(noteInfo.children.count)"
+        )
+
         // Check if this is a folder (has type "folder" or has children)
         let isFolder = noteInfo.type == "folder" || !noteInfo.children.isEmpty
 
@@ -523,6 +528,14 @@ struct NoteInfo: Identifiable, Codable {
                 type: "note"
             ),
         ]
+    }
+}
+
+// Debug extension to print NoteInfo
+extension NoteInfo {
+    func debugDescription() -> String {
+        return
+            "NoteInfo(id: \(id), title: \(title), type: \(type ?? "nil"), children: \(children.count))"
     }
 }
 

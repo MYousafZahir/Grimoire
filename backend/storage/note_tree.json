@@ -2,5 +2,11 @@
   "test": {
     "type": "note",
     "id": "note_1764835524_7612"
+  },
+  "folder_1764836232_5950": {
+    "type": "folder"
+  },
+  "folder_1764836285_8208": {
+    "type": "folder"
   }
 }

@@ -709,6 +709,7 @@ class NoteManager: ObservableObject {
                         // Reload notes to reflect deletion
                         self.loadNotes()
                         // Post notification that note was deleted
+                        print("NoteManager: Posting NoteDeleted notification for: \(noteId)")
                         NotificationCenter.default.post(
                             name: NSNotification.Name("NoteDeleted"),
                             object: nil,

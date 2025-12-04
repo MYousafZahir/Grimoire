@@ -47,19 +47,41 @@ class SearchManager: ObservableObject {
 
     func clearResultsContainingNote(_ deletedNoteId: String) {
         DispatchQueue.main.async {
+            print("SearchManager.clearResultsContainingNote called for: \(deletedNoteId)")
+            print(
+                "SearchManager: Before clearing, searchResults has keys: \(self.searchResults.keys.sorted())"
+            )
+
             // Remove any search results that reference the deleted note
+            var clearedFromNotes: [String] = []
             for (noteId, results) in self.searchResults {
+                let originalCount = results.count
                 let filteredResults = results.filter { $0.noteId != deletedNoteId }
-                if filteredResults.count != results.count {
+                let removedCount = originalCount - filteredResults.count
+
+                if removedCount > 0 {
                     self.searchResults[noteId] = filteredResults
+                    clearedFromNotes.append("\(noteId): \(removedCount) results")
                     print(
-                        "Cleared backlinks to deleted note \(deletedNoteId) from cache for note \(noteId)"
+                        "SearchManager: Cleared \(removedCount) backlinks to deleted note \(deletedNoteId) from cache for note \(noteId)"
                     )
                 }
             }
 
             // Also clear any cached results for the deleted note itself
+            let hadResultsForDeletedNote = self.searchResults[deletedNoteId] != nil
             self.searchResults.removeValue(forKey: deletedNoteId)
+
+            if hadResultsForDeletedNote {
+                print(
+                    "SearchManager: Also cleared cached results for the deleted note itself: \(deletedNoteId)"
+                )
+            }
+
+            print("SearchManager: Cleared from notes: \(clearedFromNotes)")
+            print(
+                "SearchManager: After clearing, searchResults has keys: \(self.searchResults.keys.sorted())"
+            )
         }
     }
 
@@ -154,8 +176,17 @@ class SearchManager: ObservableObject {
             queue: .main
         ) { [weak self] notification in
             if let noteId = notification.userInfo?["noteId"] as? String {
-                print("SearchManager: Note deleted, clearing cached results for: \(noteId)")
+                print("SearchManager: NoteDeleted notification received for: \(noteId)")
+                print(
+                    "SearchManager: Current cached results keys: \(self?.searchResults.keys.sorted() ?? [])"
+                )
+                print("SearchManager: Clearing cached results containing note: \(noteId)")
                 self?.clearResultsContainingNote(noteId)
+                print(
+                    "SearchManager: After clearing, cached results keys: \(self?.searchResults.keys.sorted() ?? [])"
+                )
+            } else {
+                print("SearchManager: NoteDeleted notification received but no noteId in userInfo")
             }
         }
     }

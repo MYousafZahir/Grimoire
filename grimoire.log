@@ -1,4 +1,4 @@
-[2025-12-04 01:07:46] Starting Grimoire launcher
+[2025-12-04 01:16:36] Starting Grimoire launcher
 Requirement already satisfied: pip in ./backend/venv/lib/python3.13/site-packages (25.3)
 Requirement already satisfied: fastapi<1.0.0,>=0.104.0 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (0.123.5)
 Requirement already satisfied: uvicorn<1.0.0,>=0.24.0 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (0.38.0)
