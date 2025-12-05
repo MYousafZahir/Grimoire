@@ -48,11 +48,13 @@ struct BacklinksView: View {
                         .font(.title3)
                         .foregroundColor(.secondary)
 
-                    Text("As you type, semantically related excerpts from other notes will appear here.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                    Text(
+                        "As you type, semantically related excerpts from other notes will appear here."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -110,8 +112,23 @@ struct BacklinksView: View {
         }
         .onReceive(searchManager.$searchResults) { results in
             if let currentNoteId = selectedNoteId,
-               let noteResults = results[currentNoteId] {
-                searchResults = noteResults
+                let noteResults = results[currentNoteId]
+            {
+                // Convert SearchAPIResult to SearchResult
+                let convertedResults = noteResults.map { apiResult in
+                    // Get note title from note manager if available
+                    let noteTitle =
+                        noteManager.getNote(id: apiResult.noteId)?.title ?? "Unknown Note"
+
+                    return SearchResult(
+                        noteId: apiResult.noteId,
+                        noteTitle: noteTitle,
+                        chunkId: apiResult.chunkId,
+                        excerpt: apiResult.text,
+                        score: Double(apiResult.score)
+                    )
+                }
+                searchResults = convertedResults
                 isLoading = false
             }
         }
@@ -120,11 +137,6 @@ struct BacklinksView: View {
                 loadBacklinksForNote(noteId)
             }
         }
-    }
-
-    private func loadBacklinksForNote(_ noteId: String) {
-        isLoading = true
-        searchManager.getBacklinksForNote(noteId: noteId)
     }
 
     private func refreshBacklinks() {
@@ -144,6 +156,14 @@ struct BacklinksView: View {
 
     private func hideResult(_ resultId: String) {
         searchResults.removeAll { $0.id == resultId }
+    }
+
+    private func loadBacklinksForNote(_ noteId: String) {
+        isLoading = true
+        searchResults = []
+
+        // Search manager will update searchResults via @Published property
+        // We'll handle the conversion in onReceive above
     }
 }
 
@@ -259,30 +279,34 @@ struct SearchResult: Identifiable, Codable {
                 noteId: "machine-learning",
                 noteTitle: "Machine Learning Basics",
                 chunkId: "ml_1",
-                excerpt: "Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed.",
+                excerpt:
+                    "Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed.",
                 score: 0.92
             ),
             SearchResult(
                 noteId: "neural-networks",
                 noteTitle: "Neural Networks",
                 chunkId: "nn_3",
-                excerpt: "Neural networks are computing systems inspired by biological neural networks that constitute animal brains. They learn to perform tasks by considering examples.",
+                excerpt:
+                    "Neural networks are computing systems inspired by biological neural networks that constitute animal brains. They learn to perform tasks by considering examples.",
                 score: 0.87
             ),
             SearchResult(
                 noteId: "data-science",
                 noteTitle: "Data Science Workflow",
                 chunkId: "ds_2",
-                excerpt: "The typical data science workflow involves data collection, cleaning, exploration, modeling, and interpretation of results.",
+                excerpt:
+                    "The typical data science workflow involves data collection, cleaning, exploration, modeling, and interpretation of results.",
                 score: 0.76
             ),
             SearchResult(
                 noteId: "python-ml",
                 noteTitle: "Python for ML",
                 chunkId: "pyml_4",
-                excerpt: "Python has become the dominant programming language for machine learning due to its extensive libraries like scikit-learn, TensorFlow, and PyTorch.",
+                excerpt:
+                    "Python has become the dominant programming language for machine learning due to its extensive libraries like scikit-learn, TensorFlow, and PyTorch.",
                 score: 0.68
-            )
+            ),
         ]
     }
 }

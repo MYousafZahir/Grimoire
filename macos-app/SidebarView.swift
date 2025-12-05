@@ -322,151 +322,166 @@ struct NoteRow: View {
     @EnvironmentObject private var noteManager: NoteManager
 
     var body: some View {
-        // Debug logging
-        print(
-            "NoteRow DEBUG: \(noteInfo.title) - type: \(noteInfo.type ?? "nil"), children count: \(noteInfo.children.count)"
-        )
+        // Debug logging removed - print() returns () which doesn't conform to View
 
         // Check if this is a folder (has type "folder" or has children)
-        let isFolder = noteInfo.type == "folder" || !noteInfo.children.isEmpty
 
-        if !isFolder {
-            // This is a note (leaf node)
+        // BUG FIX: Handle nil type field for new folders
+        // When type is nil and folder is empty, we can't determine if it's a folder yet
+        let canDetermineFolderType = noteInfo.type != nil || !noteInfo.children.isEmpty
+
+        if !canDetermineFolderType {
+            // This is a newly created folder with nil type - show loading state
             Label {
                 Text(noteInfo.title)
                     .lineLimit(1)
+                    .foregroundColor(.secondary)
             } icon: {
-                Image(systemName: "note.text")
-                    .foregroundColor(.blue)
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .foregroundColor(.gray)
             }
             .tag(noteInfo.id)
-            .contextMenu {
-                Button("New Child Note") {
-                    noteManager.createNewNote(parentId: noteInfo.id)
-                }
-                .disabled(!noteManager.isBackendAvailable)
-
-                Button("New Child Folder") {
-                    noteManager.createFolder(parentId: noteInfo.id) { success in
-                        if success {
-                            // Expand this folder
-                            expandedFolders.insert(noteInfo.id)
-                        }
-                    }
-                }
-                .disabled(!noteManager.isBackendAvailable)
-
-                Divider()
-
-                Button("Rename") {
-                    renamingNoteId = noteInfo.id
-                    newNoteName = noteInfo.title
-                }
-                .disabled(!noteManager.isBackendAvailable)
-
-                Divider()
-
-                Button("Delete", role: .destructive) {
-                    print("DEBUG: Delete button clicked for note: \(noteInfo.id)")
-                    // Notes don't need confirmation (they have no children)
-                    onDeleteNote(noteInfo.id)
-                }
-                .disabled(!noteManager.isBackendAvailable)
+            .onAppear {
+                // Debug logging removed for build
             }
-            .alert("Error", isPresented: $showingErrorAlert) {
-                Button("OK") {}
-            } message: {
-                if let error = noteManager.lastError {
-                    Text(error)
-                } else {
-                    Text("An error occurred")
-                }
-            }
+
         } else {
-            // This is a folder (has children or marked as folder)
-            DisclosureGroup(
-                isExpanded: Binding(
-                    get: { expandedFolders.contains(noteInfo.id) },
-                    set: { isExpanded in
-                        if isExpanded {
-                            expandedFolders.insert(noteInfo.id)
-                        } else {
-                            expandedFolders.remove(noteInfo.id)
-                        }
-                    }
-                )
-            ) {
-                ForEach(noteInfo.children) { child in
-                    NoteRow(
-                        noteInfo: child,
-                        expandedFolders: $expandedFolders,
-                        selectedNoteId: $selectedNoteId,
-                        renamingNoteId: $renamingNoteId,
-                        newNoteName: $newNoteName,
-                        folderToDelete: $folderToDelete,
-                        showingDeleteConfirmation: $showingDeleteConfirmation,
-                        folderHasContent: $folderHasContent,
-                        onDeleteNote: onDeleteNote
-                    )
-                }
-            } label: {
+            // We have enough information to determine folder type
+            let isFolder = noteInfo.type == "folder" || !noteInfo.children.isEmpty
+
+            if !isFolder {
+                // This is a note (leaf node)
                 Label {
                     Text(noteInfo.title)
                         .lineLimit(1)
                 } icon: {
-                    Image(systemName: "folder")
-                        .foregroundColor(.yellow)
+                    Image(systemName: "note.text")
+                        .foregroundColor(.blue)
                 }
-            }
-            .tag(noteInfo.id)
-            .contextMenu {
-                Button("New Note in Folder") {
-                    noteManager.createNewNote(parentId: noteInfo.id)
-                }
-                .disabled(!noteManager.isBackendAvailable)
+                .tag(noteInfo.id)
+                .contextMenu {
+                    Button("New Child Note") {
+                        noteManager.createNewNote(parentId: noteInfo.id)
+                    }
+                    .disabled(!noteManager.isBackendAvailable)
 
-                Button("New Child Folder") {
-                    noteManager.createFolder(parentId: noteInfo.id) { success in
-                        if success {
-                            // Expand this folder
-                            expandedFolders.insert(noteInfo.id)
+                    Button("New Child Folder") {
+                        noteManager.createFolder(parentId: noteInfo.id) { success in
+                            if success {
+                                // Expand this folder
+                                expandedFolders.insert(noteInfo.id)
+                            }
                         }
                     }
-                }
-                .disabled(!noteManager.isBackendAvailable)
+                    .disabled(!noteManager.isBackendAvailable)
 
-                Divider()
+                    Divider()
 
-                Button("Rename") {
-                    renamingNoteId = noteInfo.id
-                    newNoteName = noteInfo.title
-                }
-                .disabled(!noteManager.isBackendAvailable)
+                    Button("Rename") {
+                        renamingNoteId = noteInfo.id
+                        newNoteName = noteInfo.title
+                    }
+                    .disabled(!noteManager.isBackendAvailable)
 
-                Divider()
+                    Divider()
 
-                Button("Delete Folder", role: .destructive) {
-                    print("DEBUG: Delete Folder button clicked for: \(noteInfo.id)")
-                    // Check if folder has content
-                    if noteInfo.children.isEmpty {
-                        // Empty folder, delete immediately
+                    Button("Delete", role: .destructive) {
+                        print("Delete button clicked for note: \(noteInfo.id)")
+                        // Notes don't need confirmation (they have no children)
                         onDeleteNote(noteInfo.id)
+                    }
+                    .disabled(!noteManager.isBackendAvailable)
+                }
+                .alert("Error", isPresented: $showingErrorAlert) {
+                    Button("OK") {}
+                } message: {
+                    if let error = noteManager.lastError {
+                        Text(error)
                     } else {
-                        // Folder has content, show confirmation
-                        folderToDelete = noteInfo.id
-                        folderHasContent = true
-                        showingDeleteConfirmation = true
+                        Text("An error occurred")
                     }
                 }
-                .disabled(!noteManager.isBackendAvailable)
-            }
-            .alert("Error", isPresented: $showingErrorAlert) {
-                Button("OK") {}
-            } message: {
-                if let error = noteManager.lastError {
-                    Text(error)
-                } else {
-                    Text("An error occurred")
+            } else {
+                // This is a folder
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { expandedFolders.contains(noteInfo.id) },
+                        set: { isExpanded in
+                            if isExpanded {
+                                expandedFolders.insert(noteInfo.id)
+                            } else {
+                                expandedFolders.remove(noteInfo.id)
+                            }
+                        }
+                    )
+                ) {
+                    ForEach(noteInfo.children) { childNoteInfo in
+                        NoteRow(
+                            noteInfo: childNoteInfo,
+                            expandedFolders: $expandedFolders,
+                            selectedNoteId: $selectedNoteId,
+                            renamingNoteId: $renamingNoteId,
+                            newNoteName: $newNoteName,
+                            folderToDelete: $folderToDelete,
+                            showingDeleteConfirmation: $showingDeleteConfirmation,
+                            folderHasContent: $folderHasContent,
+                            onDeleteNote: onDeleteNote
+                        )
+                    }
+                } label: {
+                    Label {
+                        Text(noteInfo.title)
+                            .lineLimit(1)
+                    } icon: {
+                        Image(systemName: "folder")
+                            .foregroundColor(.yellow)
+                    }
+                }
+                .tag(noteInfo.id)
+                .contextMenu {
+                    Button("New Child Note") {
+                        noteManager.createNewNote(parentId: noteInfo.id)
+                    }
+                    .disabled(!noteManager.isBackendAvailable)
+
+                    Button("New Child Folder") {
+                        noteManager.createFolder(parentId: noteInfo.id) { success in
+                            if success {
+                                // Expand this folder
+                                expandedFolders.insert(noteInfo.id)
+                            }
+                        }
+                    }
+                    .disabled(!noteManager.isBackendAvailable)
+
+                    Divider()
+
+                    Button("Rename") {
+                        renamingNoteId = noteInfo.id
+                        newNoteName = noteInfo.title
+                    }
+                    .disabled(!noteManager.isBackendAvailable)
+
+                    Divider()
+
+                    Button("Delete", role: .destructive) {
+                        print("Delete button clicked for folder: \(noteInfo.id)")
+                        // Check if folder has content
+                        folderToDelete = noteInfo.id
+                        folderHasContent = !noteInfo.children.isEmpty
+                        showingDeleteConfirmation = true
+                    }
+                    .disabled(!noteManager.isBackendAvailable)
+                }
+                .alert("Error", isPresented: $showingErrorAlert) {
+                    Button("OK") {}
+                } message: {
+                    if let error = noteManager.lastError {
+                        Text(error)
+                    } else {
+                        Text("An error occurred")
+                    }
                 }
             }
         }

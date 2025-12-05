@@ -1,5 +1,5 @@
-import Foundation
 import Combine
+import Foundation
 
 class NoteManager: ObservableObject {
     @Published var noteTree: [NoteInfo] = []
@@ -17,7 +17,8 @@ class NoteManager: ObservableObject {
         let createdAt: Date
         let updatedAt: Date
 
-        init(id: String, title: String, content: String = "", path: String, parentId: String? = nil) {
+        init(id: String, title: String, content: String = "", path: String, parentId: String? = nil)
+        {
             self.id = id
             self.title = title
             self.content = content
@@ -31,7 +32,7 @@ class NoteManager: ObservableObject {
     // MARK: - Public Methods
 
     func loadNotes() {
-        guard let url = URL(string: "all-notes", relativeTo: backendURL) else {
+        guard let url = URL(string: "notes", relativeTo: backendURL) else {
             print("Invalid URL for loading notes")
             return
         }
@@ -131,7 +132,7 @@ class NoteManager: ObservableObject {
         // For now, we'll just remove from local state and mark as deleted
         print("Note deletion requested for: \(noteId)")
         // In a real app, we would call a DELETE endpoint
-        loadNotes() // Refresh the list
+        loadNotes()  // Refresh the list
     }
 
     func getNote(id: String) -> Note? {

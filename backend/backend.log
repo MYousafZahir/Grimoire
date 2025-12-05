@@ -1,4 +1,4 @@
-INFO:     Started server process [98956]
+INFO:     Started server process [8807]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
@@ -6,28 +6,69 @@ Loaded metadata for 4 chunks
 Loading FAISS index from storage/faiss.index
 Index loaded with 4 vectors
 Loaded note tree from storage/note_tree.json
-Loaded metadata for 4 chunks
-Loading FAISS index from storage/faiss.index
-Index loaded with 4 vectors
-Loaded note tree from storage/note_tree.json
-INFO:     127.0.0.1:65535 - "GET / HTTP/1.1" 200 OK
-Saved note tree to storage/note_tree.json
-Created folder: test_folder_1764836945
-INFO:     127.0.0.1:49152 - "POST /create-folder HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49153 - "GET /all-notes HTTP/1.1" 200 OK
-Rebuilt index with 4 embeddings
-Saved note tree to storage/note_tree.json
-Deleted folder: test_folder_1764836945
-INFO:     127.0.0.1:49154 - "POST /delete-note HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49155 - "GET /all-notes HTTP/1.1" 200 OK
-Saved note tree to storage/note_tree.json
-Created folder: parent_1764836946
-INFO:     127.0.0.1:49156 - "POST /create-folder HTTP/1.1" 200 OK
-Saved note tree to storage/note_tree.json
-Created folder: parent_1764836946/child_1764836946
-INFO:     127.0.0.1:49157 - "POST /create-folder HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49158 - "GET /all-notes HTTP/1.1" 200 OK
-Rebuilt index with 4 embeddings
-Saved note tree to storage/note_tree.json
-Deleted folder: parent_1764836946
-INFO:     127.0.0.1:49159 - "POST /delete-note HTTP/1.1" 200 OK
+DEBUG: Creating folder with path: test_folder_5
+DEBUG: Folder ID: test_folder_5, filename: test_folder_5.folder.json
+DEBUG: Wrote folder data to /Users/yousafzahir/Documents/GitHub/Grimoire/backend/storage/notes/test_folder_5.folder.json
+DEBUG: Returning response: {'success': True, 'folder_id': 'test_folder_5', 'folder': {'id': 'test_folder_5', 'title': 'test_folder_5', 'type': 'folder', 'children': []}}
+INFO:     127.0.0.1:49782 - "POST /create-folder HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49791 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49792 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49793 - "GET /all-notes HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49794 - "GET /note/welcome HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49800 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49801 - "GET /notes HTTP/1.1" 200 OK
+DEBUG: Creating folder with path: test_folder_1764869116
+DEBUG: Folder ID: test_folder_1764869116, filename: test_folder_1764869116.folder.json
+DEBUG: Wrote folder data to /Users/yousafzahir/Documents/GitHub/Grimoire/backend/storage/notes/test_folder_1764869116.folder.json
+DEBUG: Returning response: {'success': True, 'folder_id': 'test_folder_1764869116', 'folder': {'id': 'test_folder_1764869116', 'title': 'test_folder_1764869116', 'type': 'folder', 'children': []}}
+INFO:     127.0.0.1:49802 - "POST /create-folder HTTP/1.1" 200 OK
+DEBUG: Creating folder with path: verify_folder_1764869116
+DEBUG: Folder ID: verify_folder_1764869116, filename: verify_folder_1764869116.folder.json
+DEBUG: Wrote folder data to /Users/yousafzahir/Documents/GitHub/Grimoire/backend/storage/notes/verify_folder_1764869116.folder.json
+DEBUG: Returning response: {'success': True, 'folder_id': 'verify_folder_1764869116', 'folder': {'id': 'verify_folder_1764869116', 'title': 'verify_folder_1764869116', 'type': 'folder', 'children': []}}
+INFO:     127.0.0.1:49803 - "POST /create-folder HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49804 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49814 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49815 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49816 - "GET /all-notes HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49817 - "GET /note/welcome HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49825 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49826 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49827 - "GET /all-notes HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49828 - "GET /note/welcome HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49877 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49878 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49879 - "GET /all-notes HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49880 - "GET /note/welcome HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49881 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49882 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49883 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49888 - "GET / HTTP/1.1" 200 OK
+DEBUG: Creating folder with path: test_folder_1764870958
+DEBUG: Folder ID: test_folder_1764870958, filename: test_folder_1764870958.folder.json
+DEBUG: Wrote folder data to /Users/yousafzahir/Documents/GitHub/Grimoire/backend/storage/notes/test_folder_1764870958.folder.json
+DEBUG: Returning response: {'success': True, 'folder_id': 'test_folder_1764870958', 'folder': {'id': 'test_folder_1764870958', 'title': 'test_folder_1764870958', 'type': 'folder', 'children': []}}
+INFO:     127.0.0.1:49889 - "POST /create-folder HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49890 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50285 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50286 - "POST /delete-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50287 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50286 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50288 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50286 - "POST /delete-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50289 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50286 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50290 - "GET / HTTP/1.1" 200 OK
+DEBUG: Creating folder with path: folder_1764897101_9006
+DEBUG: Folder ID: folder_1764897101_9006, filename: folder_1764897101_9006.folder.json
+DEBUG: Wrote folder data to /Users/yousafzahir/Documents/GitHub/Grimoire/backend/storage/notes/folder_1764897101_9006.folder.json
+DEBUG: Returning response: {'success': True, 'folder_id': 'folder_1764897101_9006', 'folder': {'id': 'folder_1764897101_9006', 'title': 'folder_1764897101_9006', 'type': 'folder', 'children': []}}
+INFO:     127.0.0.1:50286 - "POST /create-folder HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50291 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50286 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50292 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50293 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50286 - "POST /update-note HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50294 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50295 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50286 - "POST /update-note HTTP/1.1" 404 Not Found

@@ -6,7 +6,7 @@
 	<integer>11</integer>
 	<key>logs</key>
 	<dict>
-		<key>FA72D349-3AB2-4E72-8EC6-DA0867174030</key>
+		<key>CF60BC1C-BBB8-4479-92C0-55F89435587B</key>
 		<dict>
 			<key>className</key>
 			<string>IDECommandLineBuildLog</string>
@@ -15,7 +15,7 @@
 			<key>domainType</key>
 			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
 			<key>fileName</key>
-			<string>FA72D349-3AB2-4E72-8EC6-DA0867174030.xcactivitylog</string>
+			<string>CF60BC1C-BBB8-4479-92C0-55F89435587B.xcactivitylog</string>
 			<key>hasPrimaryLog</key>
 			<true/>
 			<key>primaryObservable</key>
@@ -29,7 +29,7 @@
 				<key>totalNumberOfTestFailures</key>
 				<integer>0</integer>
 				<key>totalNumberOfWarnings</key>
-				<integer>2</integer>
+				<integer>5</integer>
 			</dict>
 			<key>schemeIdentifier-containerName</key>
 			<string>Grimoire project</string>
@@ -40,13 +40,13 @@
 			<key>signature</key>
 			<string>Building project Grimoire with scheme Grimoire and configuration Debug</string>
 			<key>timeStartedRecording</key>
-			<real>786520625.31561005</real>
+			<real>786563668.58984697</real>
 			<key>timeStoppedRecording</key>
-			<real>786520633.15399504</real>
+			<real>786563677.83089495</real>
 			<key>title</key>
 			<string>Building project Grimoire with scheme Grimoire and configuration Debug</string>
 			<key>uniqueIdentifier</key>
-			<string>FA72D349-3AB2-4E72-8EC6-DA0867174030</string>
+			<string>CF60BC1C-BBB8-4479-92C0-55F89435587B</string>
 		</dict>
 	</dict>
 </dict>

@@ -1,10 +1,63 @@
 import Combine
 import Foundation
 
-// MARK: - API Request Models for New Operations
+// MARK: - API Request Models
+
+struct BackendNoteInfo: Codable {
+    let id: String
+    let title: String
+    let type: String?
+    let children: [String]  // Backend returns array of strings
+
+    // Convert to frontend NoteInfo
+    func toNoteInfo() -> NoteInfo {
+        return NoteInfo(
+            id: id,
+            title: title,
+            path: id,  // Use id as path since backend doesn't provide path
+            children: [],  // Children will be populated separately
+            type: type
+        )
+    }
+}
 
 struct CreateFolderRequest: Codable {
     let folder_path: String
+}
+
+struct NotesResponse: Codable {
+    let notes: [BackendNoteInfo]
+}
+
+struct CreateFolderResponse: Codable {
+    let success: Bool?
+    let status: String?
+    let folder_id: String?
+    let folder_path: String?
+    let folder: BackendNoteInfo?
+
+    var isSuccess: Bool {
+        if let success = success {
+            return success
+        } else if let status = status {
+            return status == "success"
+        }
+        return false
+    }
+
+    var folderId: String {
+        if let folder_id = folder_id {
+            return folder_id
+        } else if let folder_path = folder_path {
+            return folder_path
+        }
+        return ""
+    }
+
+    var folderInfo: NoteInfo? {
+        guard let folder = folder else { return nil }
+        return folder.toNoteInfo()
+    }
 }
 
 struct RenameNoteRequest: Codable {
@@ -179,7 +232,7 @@ class NoteManager: ObservableObject {
                 return
             }
 
-            guard let url = URL(string: "all-notes", relativeTo: self.backendURL) else {
+            guard let url = URL(string: "notes", relativeTo: self.backendURL) else {
                 print("Invalid URL for loading notes")
                 self.noteTree = NoteInfo.sample()
                 NotificationCenter.default.post(
@@ -211,7 +264,7 @@ class NoteManager: ObservableObject {
                     }
                     return data
                 }
-                .decode(type: FileTreeResponse.self, decoder: JSONDecoder())
+                .decode(type: NotesResponse.self, decoder: JSONDecoder())
                 .receive(on: DispatchQueue.main)
                 .sink { completion in
                     if case .failure(let error) = completion {
@@ -237,9 +290,57 @@ class NoteManager: ObservableObject {
                         }
                     }
                 } receiveValue: { response in
-                    self.noteTree = response.notes
+                    // Convert backend notes to frontend format
+                    let backendNotes = response.notes
+                    var noteMap: [String: NoteInfo] = [:]
+
+                    // First pass: create all notes without children
+                    for backendNote in backendNotes {
+                        noteMap[backendNote.id] = backendNote.toNoteInfo()
+                    }
+
+                    // Second pass: build hierarchy
+                    var rootNotes: [NoteInfo] = []
+
+                    for backendNote in backendNotes {
+                        guard var note = noteMap[backendNote.id] else { continue }
+
+                        // Add children if they exist in the map
+                        var children: [NoteInfo] = []
+                        for childId in backendNote.children {
+                            if let childNote = noteMap[childId] {
+                                children.append(childNote)
+                            }
+                        }
+
+                        // Create updated note with children
+                        note = NoteInfo(
+                            id: note.id,
+                            title: note.title,
+                            path: note.path,
+                            children: children,
+                            type: note.type
+                        )
+                        noteMap[backendNote.id] = note
+
+                        // If this note is not a child of any other note, it's a root note
+                        var isChild = false
+                        for otherBackendNote in backendNotes {
+                            if otherBackendNote.children.contains(backendNote.id) {
+                                isChild = true
+                                break
+                            }
+                        }
+
+                        if !isChild {
+                            rootNotes.append(note)
+                        }
+                    }
+
+                    self.noteTree = rootNotes
                     self.lastError = nil
-                    let message = "Loaded \(response.notes.count) notes from backend"
+                    let message =
+                        "Loaded \(rootNotes.count) notes from backend (converted from \(backendNotes.count) backend notes)"
                     DebugLogger.shared.log(message)
                     print(message)
                     // Notify that notes were loaded
@@ -517,13 +618,37 @@ class NoteManager: ObservableObject {
                 return
             }
 
+            // Create optimistic folder for immediate UI feedback
+            let optimisticFolder = NoteInfo(
+                id: folderId,
+                title: "New Folder",
+                path: folderPath,
+                children: [],
+                type: "folder"
+            )
+
+            // Add to note tree immediately
+            DispatchQueue.main.async {
+                var newTree = self.noteTree
+                newTree.append(optimisticFolder)
+                self.noteTree = newTree
+            }
+
             URLSession.shared.dataTaskPublisher(for: request)
-                .tryMap { (data, response) -> Bool in
+                .tryMap { (data, response) -> (Bool, CreateFolderResponse?) in
                     guard let httpResponse = response as? HTTPURLResponse else {
-                        return false
+                        return (false, nil)
                     }
                     if httpResponse.statusCode == 200 {
-                        return true
+                        // Try to parse the response
+                        do {
+                            let response = try JSONDecoder().decode(
+                                CreateFolderResponse.self, from: data)
+                            return (response.isSuccess, response)
+                        } catch {
+                            print("Failed to parse create-folder response: \(error)")
+                            return (true, nil)  // Assume success if we can't parse
+                        }
                     } else {
                         if let errorData = try? JSONSerialization.jsonObject(with: data)
                             as? [String: Any],
@@ -533,18 +658,31 @@ class NoteManager: ObservableObject {
                         } else {
                             self.lastError = "Failed with status code: \(httpResponse.statusCode)"
                         }
-                        return false
+                        return (false, nil)
                     }
                 }
-                .catch { error -> Just<Bool> in
+                .catch { error -> Just<(Bool, CreateFolderResponse?)> in
                     self.lastError = "Folder creation error: \(error.localizedDescription)"
-                    return Just(false)
+                    return Just((false, nil))
                 }
                 .receive(on: DispatchQueue.main)
-                .sink { success in
+                .sink { (success, response) in
                     if success {
-                        // Reload notes to show new folder
+                        if let folderInfo = response?.folderInfo {
+                            // Update the optimistic folder with backend data
+                            print("Folder created successfully with backend data: \(folderInfo.id)")
+                            // The folder is already in the tree optimistically
+                            // When loadNotes() is called, it will get the correct type from backend
+                        }
+                        // Reload notes to show new folder with correct data from backend
                         self.loadNotes()
+                    } else {
+                        // Remove optimistic folder if creation failed
+                        DispatchQueue.main.async {
+                            var newTree = self.noteTree
+                            newTree.removeAll { $0.id == folderId }
+                            self.noteTree = newTree
+                        }
                     }
                     completion(success)
                 }
