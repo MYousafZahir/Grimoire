@@ -41,8 +41,12 @@ class SearchRequest(BaseModel):
 class SearchResult(BaseModel):
     note_id: str
     chunk_id: str
-    text: str
+    excerpt: str
     score: float
+
+
+class SearchResponse(BaseModel):
+    results: List[SearchResult]
 
 
 class UpdateNoteRequest(BaseModel):
@@ -50,16 +54,15 @@ class UpdateNoteRequest(BaseModel):
     content: str
 
 
-class NoteContentResponse(BaseModel):
-    note_id: str
-    content: str
-
-
 class NoteInfo(BaseModel):
     id: str
     title: str
+    path: str
+    children: List["NoteInfo"]
     type: Optional[str] = None
-    children: List[str] = []
+
+
+NoteInfo.model_rebuild()
 
 
 class CreateFolderRequest(BaseModel):
@@ -75,104 +78,59 @@ class DeleteNoteRequest(BaseModel):
     note_id: str
 
 
-# Health check endpoint
+class FileTreeResponse(BaseModel):
+    notes: List[NoteInfo]
+
+
+# API endpoints
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "Grimoire backend is running"}
+    """Health check endpoint."""
+    return {"status": "ok", "service": "Grimoire Backend"}
 
 
-# Search endpoint
-@app.post("/search")
+@app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest):
+    """
+    Search for semantically related excerpts.
+
+    Takes the current note content and returns excerpts from other notes
+    that are semantically similar.
+    """
     try:
-        # Chunk the search text
-        chunks = chunker.chunk_text(request.text)
+        # Embed the search text
+        query_embedding = embedder.embed(request.text)
 
-        # Embed each chunk
-        embeddings = []
-        for chunk in chunks:
-            embedding = embedder.embed_text(chunk)
-            embeddings.append(embedding)
-
-        # Search the index
-        results = []
-        for i, embedding in enumerate(embeddings):
-            search_results = indexer.search(embedding, top_k=5)
-            for result in search_results:
-                results.append(
-                    SearchResult(
-                        note_id=result["note_id"],
-                        chunk_id=result["chunk_id"],
-                        text=result["text"],
-                        score=result["score"],
-                    )
-                )
-
-        # Deduplicate and sort by score
-        unique_results = {}
-        for result in results:
-            key = (result.note_id, result.chunk_id)
-            if key not in unique_results or result.score > unique_results[key].score:
-                unique_results[key] = result
-
-        sorted_results = sorted(
-            unique_results.values(), key=lambda x: x.score, reverse=True
+        # Search the index for similar chunks
+        results = indexer.search(
+            query_embedding=query_embedding, exclude_note_id=request.note_id, top_k=10
         )
 
-        return {"results": sorted_results[:10]}
-
+        return SearchResponse(results=results)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 @app.post("/update-note")
 async def update_note(request: UpdateNoteRequest):
-    """Create or update a note and refresh the semantic index."""
+    """
+    Update a note in the system.
 
+    Re-chunks and re-embeds the note content, then updates the FAISS index.
+    Also saves the markdown file to disk.
+    """
     try:
-        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
-        os.makedirs(notes_dir, exist_ok=True)
+        # Save the note content to file
+        note_path = os.path.join("storage", "notes", f"{request.note_id}.md")
+        os.makedirs(os.path.dirname(note_path), exist_ok=True)
 
-        safe_note_id = request.note_id.replace("/", "_")
-        note_filename = f"{safe_note_id}.md"
-        metadata_filename = f"{safe_note_id}.json"
-
-        # Persist note content to disk
-        note_path = os.path.join(notes_dir, note_filename)
         with open(note_path, "w", encoding="utf-8") as f:
             f.write(request.content)
 
-        # Update note metadata so the sidebar can discover the note
-        metadata = {
-            "title": os.path.basename(request.note_id).replace("_", " "),
-            "path": request.note_id,
-            "children": [],
-        }
-        metadata_path = os.path.join(notes_dir, metadata_filename)
-        with open(metadata_path, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=2)
-
-        # Add reference to parent folder if present
-        parent_path = os.path.dirname(request.note_id)
-        if parent_path and parent_path != ".":
-            parent_id = parent_path.replace("/", "_")
-            parent_filename = f"{parent_id}.folder.json"
-            parent_filepath = os.path.join(notes_dir, parent_filename)
-
-            if os.path.exists(parent_filepath):
-                with open(parent_filepath, "r", encoding="utf-8") as f:
-                    parent_data = json.load(f)
-
-                children = parent_data.get("children", [])
-                if request.note_id not in children:
-                    children.append(request.note_id)
-                    parent_data["children"] = children
-
-                    with open(parent_filepath, "w", encoding="utf-8") as f:
-                        json.dump(parent_data, f, indent=2)
-
-        # Re-chunk and embed for search
+        # Chunk the note content
         chunks = chunker.chunk(request.content, request.note_id)
+
+        # Embed each chunk
         chunk_embeddings = []
         for chunk in chunks:
             embedding = embedder.embed(chunk["text"])
@@ -185,286 +143,134 @@ async def update_note(request: UpdateNoteRequest):
                 }
             )
 
+        # Update the index
         indexer.update_note(request.note_id, chunk_embeddings)
 
-        return {"success": True, "note_id": request.note_id}
-
+        return {"status": "success", "note_id": request.note_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 
-@app.get("/note/{note_id}", response_model=NoteContentResponse)
-async def get_note(note_id: str):
-    """Return the raw markdown content for a note."""
+@app.get("/all-notes", response_model=FileTreeResponse)
+async def get_all_notes():
+    """
+    Get the complete file tree for the sidebar.
 
+    Returns a hierarchical structure of all notes in the system.
+    """
     try:
-        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
-        safe_note_id = note_id.replace("/", "_")
-        note_path = os.path.join(notes_dir, f"{safe_note_id}.md")
+        notes_tree = indexer.get_note_tree()
+        return FileTreeResponse(notes=notes_tree)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get notes: {str(e)}")
 
+
+@app.get("/notes", response_model=FileTreeResponse)
+async def get_notes():
+    """Alias for retrieving the full note tree."""
+    return await get_all_notes()
+
+
+@app.get("/note/{note_id}")
+async def get_note(note_id: str):
+    """
+    Get the content of a specific note.
+    """
+    try:
+        note_path = os.path.join("storage", "notes", f"{note_id}.md")
         if not os.path.exists(note_path):
             raise HTTPException(status_code=404, detail="Note not found")
 
         with open(note_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        return NoteContentResponse(note_id=note_id, content=content)
-
+        return {"note_id": note_id, "content": content}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get note: {str(e)}")
 
 
-# Get all notes endpoint
-@app.get("/notes")
-async def get_notes():
-    try:
-        # Get all notes from storage
-        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
-        if not os.path.exists(notes_dir):
-            return {"notes": []}
-
-        notes = []
-        for filename in os.listdir(notes_dir):
-            if filename.endswith(".json"):
-                note_path = os.path.join(notes_dir, filename)
-                with open(note_path, "r") as f:
-                    note_data = json.load(f)
-
-                # Determine if it's a folder (has .folder.json suffix)
-                is_folder = filename.endswith(".folder.json")
-                safe_note_id = filename.replace(".json", "").replace(".folder", "")
-                note_id = note_data.get("path", safe_note_id)
-
-                notes.append(
-                    NoteInfo(
-                        id=note_id,
-                        title=note_data.get("title", "Untitled"),
-                        type="folder" if is_folder else "note",
-                        children=note_data.get("children", []),
-                    )
-                )
-
-        return {"notes": notes}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Create folder endpoint
 @app.post("/create-folder")
 async def create_folder(request: CreateFolderRequest):
+    """
+    Create a new folder in the note hierarchy.
+    """
     try:
-        folder_path = request.folder_path
-        print(f"DEBUG: Creating folder with path: {folder_path}")
-
-        # Create folder metadata file
-        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
-        os.makedirs(notes_dir, exist_ok=True)
-
-        folder_id = folder_path.replace("/", "_")
-        folder_filename = f"{folder_id}.folder.json"
-        folder_filepath = os.path.join(notes_dir, folder_filename)
-        print(f"DEBUG: Folder ID: {folder_id}, filename: {folder_filename}")
-
-        folder_data = {
-            "title": os.path.basename(folder_path),
-            "path": folder_path,
-            "children": [],
-            "created_at": str(os.path.getctime(folder_filepath))
-            if os.path.exists(folder_filepath)
-            else str(os.path.getctime(notes_dir)),
-            "updated_at": str(os.path.getctime(folder_filepath))
-            if os.path.exists(folder_filepath)
-            else str(os.path.getctime(notes_dir)),
-        }
-
-        with open(folder_filepath, "w") as f:
-            json.dump(folder_data, f, indent=2)
-        print(f"DEBUG: Wrote folder data to {folder_filepath}")
-
-        # Update parent folder if needed
-        parent_path = os.path.dirname(folder_path)
-        if parent_path and parent_path != ".":
-            parent_id = parent_path.replace("/", "_")
-            parent_filename = f"{parent_id}.folder.json"
-            parent_filepath = os.path.join(notes_dir, parent_filename)
-            print(f"DEBUG: Parent path: {parent_path}, parent ID: {parent_id}")
-
-            if os.path.exists(parent_filepath):
-                with open(parent_filepath, "r") as f:
-                    parent_data = json.load(f)
-
-                if folder_path not in parent_data.get("children", []):
-                    parent_data.setdefault("children", []).append(folder_path)
-                    with open(parent_filepath, "w") as f:
-                        json.dump(parent_data, f, indent=2)
-                    print(
-                        f"DEBUG: Updated parent folder {parent_id} with child {folder_id}"
-                    )
-
-        # Return full folder data for frontend to update optimistically
-        response_data = {
-            "success": True,
-            "folder_id": folder_path,
-            "folder": {
-                "id": folder_path,
-                "title": os.path.basename(folder_path),
-                "type": "folder",
-                "children": [],
-            },
-        }
-        print(f"DEBUG: Returning response: {response_data}")
-        return response_data
-
+        indexer.create_folder(request.folder_path)
+        return {"status": "success", "folder_path": request.folder_path}
     except Exception as e:
-        print(f"ERROR in create_folder: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create folder: {str(e)}"
+        )
 
 
-# Rename note endpoint
 @app.post("/rename-note")
 async def rename_note(request: RenameNoteRequest):
+    """
+    Rename a note (change its ID/path).
+    """
     try:
-        old_note_id = request.old_note_id
-        new_note_id = request.new_note_id
+        # First, rename the note file
+        old_path = os.path.join("storage", "notes", f"{request.old_note_id}.md")
+        new_path = os.path.join("storage", "notes", f"{request.new_note_id}.md")
 
-        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
+        if os.path.exists(old_path):
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            os.rename(old_path, new_path)
 
-        safe_old_id = old_note_id.replace("/", "_")
-        safe_new_id = new_note_id.replace("/", "_")
+        # Update the index
+        success = indexer.rename_note(request.old_note_id, request.new_note_id)
 
-        # Check if old note exists
-        old_note_path = os.path.join(notes_dir, f"{safe_old_id}.json")
-        old_folder_path = os.path.join(notes_dir, f"{safe_old_id}.folder.json")
-
-        if not os.path.exists(old_note_path) and not os.path.exists(old_folder_path):
-            raise HTTPException(status_code=404, detail="Note not found")
-
-        # Rename the file
-        if os.path.exists(old_note_path):
-            new_note_path = os.path.join(notes_dir, f"{safe_new_id}.json")
-            os.rename(old_note_path, new_note_path)
-
-            # Rename stored markdown content if present
-            old_md_path = os.path.join(notes_dir, f"{safe_old_id}.md")
-            new_md_path = os.path.join(notes_dir, f"{safe_new_id}.md")
-            if os.path.exists(old_md_path):
-                os.rename(old_md_path, new_md_path)
-
-            # Update the note data
-            with open(new_note_path, "r") as f:
-                note_data = json.load(f)
-
-            note_data["title"] = new_note_id.replace("_", " ")
-            note_data["path"] = new_note_id
-            with open(new_note_path, "w") as f:
-                json.dump(note_data, f, indent=2)
-
-        if os.path.exists(old_folder_path):
-            new_folder_path = os.path.join(notes_dir, f"{safe_new_id}.folder.json")
-            os.rename(old_folder_path, new_folder_path)
-
-            # Update the folder data
-            with open(new_folder_path, "r") as f:
-                folder_data = json.load(f)
-
-            folder_data["title"] = new_note_id.replace("_", " ")
-            folder_data["path"] = new_note_id
-            with open(new_folder_path, "w") as f:
-                json.dump(folder_data, f, indent=2)
-
-        # Update parent references
-        for filename in os.listdir(notes_dir):
-            if filename.endswith(".folder.json"):
-                filepath = os.path.join(notes_dir, filename)
-                with open(filepath, "r") as f:
-                    data = json.load(f)
-
-                if "children" in data and (
-                    old_note_id in data["children"]
-                    or safe_old_id in data["children"]
-                ):
-                    data["children"] = [
-                        new_note_id if child in (old_note_id, safe_old_id) else child
-                        for child in data["children"]
-                    ]
-                    with open(filepath, "w") as f:
-                        json.dump(data, f, indent=2)
-
-        return {"success": True}
-
+        if success:
+            return {
+                "status": "success",
+                "old_note_id": request.old_note_id,
+                "new_note_id": request.new_note_id,
+            }
+        else:
+            raise HTTPException(
+                status_code=404, detail=f"Note {request.old_note_id} not found"
+            )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to rename note: {str(e)}")
 
 
-# Delete note endpoint
 @app.post("/delete-note")
 async def delete_note(request: DeleteNoteRequest):
+    """
+    Delete a note or folder from the system.
+    """
     try:
-        note_id = request.note_id
+        # Update the index and get list of deleted note IDs
+        success, deleted_note_ids = indexer.delete_note(request.note_id)
 
-        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
+        if not success:
+            raise HTTPException(
+                status_code=404, detail=f"Note {request.note_id} not found"
+            )
 
-        safe_note_id = note_id.replace("/", "_")
+        # Delete all note files for the deleted notes
+        for note_id in deleted_note_ids:
+            note_path = os.path.join("storage", "notes", f"{note_id}.md")
+            if os.path.exists(note_path):
+                os.remove(note_path)
+                print(f"Deleted note file: {note_path}")
 
-        # Check if note exists
-        note_path = os.path.join(notes_dir, f"{safe_note_id}.json")
-        folder_path = os.path.join(notes_dir, f"{safe_note_id}.folder.json")
-        md_path = os.path.join(notes_dir, f"{safe_note_id}.md")
+        # Also delete the main note file if it exists (for regular notes)
+        main_note_path = os.path.join("storage", "notes", f"{request.note_id}.md")
+        if os.path.exists(main_note_path) and request.note_id not in deleted_note_ids:
+            os.remove(main_note_path)
+            print(f"Deleted main note file: {main_note_path}")
 
-        if not os.path.exists(note_path) and not os.path.exists(folder_path):
-            raise HTTPException(status_code=404, detail="Note not found")
-
-        # Delete the file(s)
-        if os.path.exists(note_path):
-            os.remove(note_path)
-        if os.path.exists(md_path):
-            os.remove(md_path)
-
-        if os.path.exists(folder_path):
-            # If it's a folder, also delete all children
-            with open(folder_path, "r") as f:
-                folder_data = json.load(f)
-
-            children = folder_data.get("children", [])
-            for child_id in children:
-                safe_child_id = child_id.replace("/", "_")
-                child_note_path = os.path.join(notes_dir, f"{safe_child_id}.json")
-                child_folder_path = os.path.join(notes_dir, f"{safe_child_id}.folder.json")
-                child_md_path = os.path.join(notes_dir, f"{safe_child_id}.md")
-
-                if os.path.exists(child_note_path):
-                    os.remove(child_note_path)
-                if os.path.exists(child_md_path):
-                    os.remove(child_md_path)
-                if os.path.exists(child_folder_path):
-                    os.remove(child_folder_path)
-
-            os.remove(folder_path)
-
-        # Remove from parent references
-        for filename in os.listdir(notes_dir):
-            if filename.endswith(".folder.json"):
-                filepath = os.path.join(notes_dir, filename)
-                with open(filepath, "r") as f:
-                    data = json.load(f)
-
-                if "children" in data and (note_id in data["children"] or safe_note_id in data["children"]):
-                    data["children"] = [
-                        child
-                        for child in data["children"]
-                        if child not in (note_id, safe_note_id)
-                    ]
-                    with open(filepath, "w") as f:
-                        json.dump(data, f, indent=2)
-
-        return {"success": True}
-
+        return {"status": "success", "note_id": request.note_id}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to delete note: {str(e)}")
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
