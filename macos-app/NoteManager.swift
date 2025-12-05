@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import SwiftUI
 
 // MARK: - API Request Models
 
@@ -111,8 +112,8 @@ class NoteManager: ObservableObject {
     @Published var isBackendAvailable: Bool = false
     @Published var lastError: String? = nil
 
-    // Include trailing slash so relative paths resolve correctly (e.g. "/update-note")
-    private let backendURL = URL(string: "http://127.0.0.1:8000/")!
+    // Allow user-configurable backend URL while ensuring a trailing slash for relative paths
+    @AppStorage("backendURL") private var backendURLString: String = "http://127.0.0.1:8000/"
     private var cancellables = Set<AnyCancellable>()
 
     struct Note: Codable, Identifiable {
@@ -139,8 +140,13 @@ class NoteManager: ObservableObject {
     // MARK: - Public Methods
 
     func checkBackendConnection(completion: @escaping (Bool) -> Void = { _ in }) {
-        // Use the backend URL directly for health check (root endpoint)
-        let url = backendURL
+        guard let url = normalizedBackendURL() else {
+            let message = "Invalid backend URL"
+            self.lastError = message
+            DebugLogger.shared.log(message)
+            completion(false)
+            return
+        }
 
         DebugLogger.shared.log("Checking backend connection to: \(url.absoluteString)")
         print("Checking backend connection to: \(url.absoluteString)")
@@ -233,7 +239,9 @@ class NoteManager: ObservableObject {
                 return
             }
 
-            guard let url = URL(string: "notes", relativeTo: self.backendURL) else {
+            guard let backendURL = self.normalizedBackendURL(),
+                  let url = URL(string: "notes", relativeTo: backendURL)
+            else {
                 print("Invalid URL for loading notes")
                 self.noteTree = NoteInfo.sample()
                 NotificationCenter.default.post(
@@ -355,7 +363,9 @@ class NoteManager: ObservableObject {
     }
 
     func loadNoteContent(noteId: String, completion: @escaping (String) -> Void) {
-        guard let url = URL(string: "note/\(noteId)", relativeTo: backendURL) else {
+        guard let backendURL = normalizedBackendURL(),
+              let url = URL(string: "note/\(noteId)", relativeTo: backendURL)
+        else {
             print("Invalid URL for loading note content")
             completion("")
             return
@@ -407,7 +417,9 @@ class NoteManager: ObservableObject {
                 return
             }
 
-            guard let url = URL(string: "update-note", relativeTo: self.backendURL) else {
+            guard let backendURL = self.normalizedBackendURL(),
+                  let url = URL(string: "update-note", relativeTo: backendURL)
+            else {
                 print("Invalid URL for saving note")
                 self.lastError = "Invalid URL"
                 completion(false)
@@ -564,6 +576,16 @@ class NoteManager: ObservableObject {
         }
     }
 
+    private func normalizedBackendURL() -> URL? {
+        var urlString = backendURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !urlString.isEmpty, !urlString.hasSuffix("/") {
+            urlString += "/"
+        }
+
+        return URL(string: urlString)
+    }
+
     private func generateFolderId(parentId: String?) -> String {
         let timestamp = Int(Date().timeIntervalSince1970)
         let random = Int.random(in: 1000...9999)
@@ -599,7 +621,9 @@ class NoteManager: ObservableObject {
             let folderId = self.generateFolderId(parentId: parentId)
             let folderPath = parentId != nil ? "\(parentId!)/\(folderId)" : folderId
 
-            guard let url = URL(string: "create-folder", relativeTo: self.backendURL) else {
+            guard let backendURL = self.normalizedBackendURL(),
+                  let url = URL(string: "create-folder", relativeTo: backendURL)
+            else {
                 self.lastError = "Invalid URL"
                 completion(false)
                 return
@@ -704,7 +728,9 @@ class NoteManager: ObservableObject {
                 return
             }
 
-            guard let url = URL(string: "rename-note", relativeTo: self.backendURL) else {
+            guard let backendURL = self.normalizedBackendURL(),
+                  let url = URL(string: "rename-note", relativeTo: backendURL)
+            else {
                 self.lastError = "Invalid URL"
                 completion(false)
                 return
@@ -777,7 +803,9 @@ class NoteManager: ObservableObject {
                 return
             }
 
-            guard let url = URL(string: "delete-note", relativeTo: self.backendURL) else {
+            guard let backendURL = self.normalizedBackendURL(),
+                  let url = URL(string: "delete-note", relativeTo: backendURL)
+            else {
                 self.lastError = "Invalid URL"
                 DebugLogger.shared.log("deleteNote: Invalid URL")
                 completion(false)

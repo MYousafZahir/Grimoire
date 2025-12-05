@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import SwiftUI
 import os.signpost
 
 class SearchManager: ObservableObject {
@@ -14,7 +15,8 @@ class SearchManager: ObservableObject {
     @Published var isLoading: Bool = false
 
     // Trailing slash ensures relative endpoints resolve to the correct base
-    private let backendURL = URL(string: "http://127.0.0.1:8000/")!
+    @AppStorage("backendURL") private var backendURLString: String = "http://127.0.0.1:8000/"
+    private var backendURL: URL { normalizedBackendURL() ?? URL(string: "http://127.0.0.1:8000/")! }
     private var cancellables = Set<AnyCancellable>()
     private var searchTimers: [String: Timer] = [:]
 
@@ -228,6 +230,16 @@ class SearchManager: ObservableObject {
     }
 
     // MARK: - Thread-Safe Cache Methods
+
+    private func normalizedBackendURL() -> URL? {
+        var urlString = backendURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !urlString.isEmpty, !urlString.hasSuffix("/") {
+            urlString += "/"
+        }
+
+        return URL(string: urlString)
+    }
 
     private func updateResults(_ results: [SearchAPIResult], for noteId: String) {
         // Update thread-safe cache first

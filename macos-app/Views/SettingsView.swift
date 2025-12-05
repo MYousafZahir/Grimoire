@@ -26,6 +26,11 @@ struct SettingsView: View {
                         Text("Backend URL:")
                         TextField("Backend URL", text: $backendURL)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .onChange(of: backendURL) { newValue in
+                                if !newValue.isEmpty, !newValue.hasSuffix("/") {
+                                    backendURL = newValue + "/"
+                                }
+                            }
 
                         Button("Test") {
                             testBackendConnection()

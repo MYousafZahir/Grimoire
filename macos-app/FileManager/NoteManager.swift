@@ -1,12 +1,14 @@
 import Combine
 import Foundation
+import SwiftUI
 
 class NoteManager: ObservableObject {
     @Published var noteTree: [NoteInfo] = []
     @Published var notes: [String: Note] = [:]
 
     // Trailing slash ensures relative paths resolve correctly when appending endpoints
-    private let backendURL = URL(string: "http://127.0.0.1:8000/")!
+    @AppStorage("backendURL") private var backendURLString: String = "http://127.0.0.1:8000/"
+    private var backendURL: URL { normalizedBackendURL() ?? URL(string: "http://127.0.0.1:8000/")! }
     private var cancellables = Set<AnyCancellable>()
 
     struct Note: Codable, Identifiable {
@@ -153,6 +155,16 @@ class NoteManager: ObservableObject {
         } else {
             return "note_\(timestamp)_\(random)"
         }
+    }
+
+    private func normalizedBackendURL() -> URL? {
+        var urlString = backendURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !urlString.isEmpty, !urlString.hasSuffix("/") {
+            urlString += "/"
+        }
+
+        return URL(string: urlString)
     }
 
     private func buildNoteTree(from noteInfos: [NoteInfo]) -> [NoteInfo] {
