@@ -45,6 +45,16 @@ class SearchResult(BaseModel):
     score: float
 
 
+class UpdateNoteRequest(BaseModel):
+    note_id: str
+    content: str
+
+
+class NoteContentResponse(BaseModel):
+    note_id: str
+    content: str
+
+
 class NoteInfo(BaseModel):
     id: str
     title: str
@@ -115,6 +125,97 @@ async def search(request: SearchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/update-note")
+async def update_note(request: UpdateNoteRequest):
+    """Create or update a note and refresh the semantic index."""
+
+    try:
+        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
+        os.makedirs(notes_dir, exist_ok=True)
+
+        safe_note_id = request.note_id.replace("/", "_")
+        note_filename = f"{safe_note_id}.md"
+        metadata_filename = f"{safe_note_id}.json"
+
+        # Persist note content to disk
+        note_path = os.path.join(notes_dir, note_filename)
+        with open(note_path, "w", encoding="utf-8") as f:
+            f.write(request.content)
+
+        # Update note metadata so the sidebar can discover the note
+        metadata = {
+            "title": os.path.basename(request.note_id).replace("_", " "),
+            "path": request.note_id,
+            "children": [],
+        }
+        metadata_path = os.path.join(notes_dir, metadata_filename)
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+
+        # Add reference to parent folder if present
+        parent_path = os.path.dirname(request.note_id)
+        if parent_path and parent_path != ".":
+            parent_id = parent_path.replace("/", "_")
+            parent_filename = f"{parent_id}.folder.json"
+            parent_filepath = os.path.join(notes_dir, parent_filename)
+
+            if os.path.exists(parent_filepath):
+                with open(parent_filepath, "r", encoding="utf-8") as f:
+                    parent_data = json.load(f)
+
+                children = parent_data.get("children", [])
+                if request.note_id not in children:
+                    children.append(request.note_id)
+                    parent_data["children"] = children
+
+                    with open(parent_filepath, "w", encoding="utf-8") as f:
+                        json.dump(parent_data, f, indent=2)
+
+        # Re-chunk and embed for search
+        chunks = chunker.chunk(request.content, request.note_id)
+        chunk_embeddings = []
+        for chunk in chunks:
+            embedding = embedder.embed(chunk["text"])
+            chunk_embeddings.append(
+                {
+                    "note_id": request.note_id,
+                    "chunk_id": chunk["chunk_id"],
+                    "text": chunk["text"],
+                    "embedding": embedding,
+                }
+            )
+
+        indexer.update_note(request.note_id, chunk_embeddings)
+
+        return {"success": True, "note_id": request.note_id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/note/{note_id}", response_model=NoteContentResponse)
+async def get_note(note_id: str):
+    """Return the raw markdown content for a note."""
+
+    try:
+        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
+        safe_note_id = note_id.replace("/", "_")
+        note_path = os.path.join(notes_dir, f"{safe_note_id}.md")
+
+        if not os.path.exists(note_path):
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        with open(note_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        return NoteContentResponse(note_id=note_id, content=content)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Get all notes endpoint
 @app.get("/notes")
 async def get_notes():
@@ -133,7 +234,8 @@ async def get_notes():
 
                 # Determine if it's a folder (has .folder.json suffix)
                 is_folder = filename.endswith(".folder.json")
-                note_id = filename.replace(".json", "").replace(".folder", "")
+                safe_note_id = filename.replace(".json", "").replace(".folder", "")
+                note_id = note_data.get("path", safe_note_id)
 
                 notes.append(
                     NoteInfo(
@@ -194,8 +296,8 @@ async def create_folder(request: CreateFolderRequest):
                 with open(parent_filepath, "r") as f:
                     parent_data = json.load(f)
 
-                if folder_id not in parent_data.get("children", []):
-                    parent_data.setdefault("children", []).append(folder_id)
+                if folder_path not in parent_data.get("children", []):
+                    parent_data.setdefault("children", []).append(folder_path)
                     with open(parent_filepath, "w") as f:
                         json.dump(parent_data, f, indent=2)
                     print(
@@ -205,9 +307,9 @@ async def create_folder(request: CreateFolderRequest):
         # Return full folder data for frontend to update optimistically
         response_data = {
             "success": True,
-            "folder_id": folder_id,
+            "folder_id": folder_path,
             "folder": {
-                "id": folder_id,
+                "id": folder_path,
                 "title": os.path.basename(folder_path),
                 "type": "folder",
                 "children": [],
@@ -230,28 +332,38 @@ async def rename_note(request: RenameNoteRequest):
 
         notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
 
+        safe_old_id = old_note_id.replace("/", "_")
+        safe_new_id = new_note_id.replace("/", "_")
+
         # Check if old note exists
-        old_note_path = os.path.join(notes_dir, f"{old_note_id}.json")
-        old_folder_path = os.path.join(notes_dir, f"{old_note_id}.folder.json")
+        old_note_path = os.path.join(notes_dir, f"{safe_old_id}.json")
+        old_folder_path = os.path.join(notes_dir, f"{safe_old_id}.folder.json")
 
         if not os.path.exists(old_note_path) and not os.path.exists(old_folder_path):
             raise HTTPException(status_code=404, detail="Note not found")
 
         # Rename the file
         if os.path.exists(old_note_path):
-            new_note_path = os.path.join(notes_dir, f"{new_note_id}.json")
+            new_note_path = os.path.join(notes_dir, f"{safe_new_id}.json")
             os.rename(old_note_path, new_note_path)
+
+            # Rename stored markdown content if present
+            old_md_path = os.path.join(notes_dir, f"{safe_old_id}.md")
+            new_md_path = os.path.join(notes_dir, f"{safe_new_id}.md")
+            if os.path.exists(old_md_path):
+                os.rename(old_md_path, new_md_path)
 
             # Update the note data
             with open(new_note_path, "r") as f:
                 note_data = json.load(f)
 
             note_data["title"] = new_note_id.replace("_", " ")
+            note_data["path"] = new_note_id
             with open(new_note_path, "w") as f:
                 json.dump(note_data, f, indent=2)
 
         if os.path.exists(old_folder_path):
-            new_folder_path = os.path.join(notes_dir, f"{new_note_id}.folder.json")
+            new_folder_path = os.path.join(notes_dir, f"{safe_new_id}.folder.json")
             os.rename(old_folder_path, new_folder_path)
 
             # Update the folder data
@@ -259,6 +371,7 @@ async def rename_note(request: RenameNoteRequest):
                 folder_data = json.load(f)
 
             folder_data["title"] = new_note_id.replace("_", " ")
+            folder_data["path"] = new_note_id
             with open(new_folder_path, "w") as f:
                 json.dump(folder_data, f, indent=2)
 
@@ -269,9 +382,12 @@ async def rename_note(request: RenameNoteRequest):
                 with open(filepath, "r") as f:
                     data = json.load(f)
 
-                if "children" in data and old_note_id in data["children"]:
+                if "children" in data and (
+                    old_note_id in data["children"]
+                    or safe_old_id in data["children"]
+                ):
                     data["children"] = [
-                        new_note_id if child == old_note_id else child
+                        new_note_id if child in (old_note_id, safe_old_id) else child
                         for child in data["children"]
                     ]
                     with open(filepath, "w") as f:
@@ -291,9 +407,12 @@ async def delete_note(request: DeleteNoteRequest):
 
         notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
 
+        safe_note_id = note_id.replace("/", "_")
+
         # Check if note exists
-        note_path = os.path.join(notes_dir, f"{note_id}.json")
-        folder_path = os.path.join(notes_dir, f"{note_id}.folder.json")
+        note_path = os.path.join(notes_dir, f"{safe_note_id}.json")
+        folder_path = os.path.join(notes_dir, f"{safe_note_id}.folder.json")
+        md_path = os.path.join(notes_dir, f"{safe_note_id}.md")
 
         if not os.path.exists(note_path) and not os.path.exists(folder_path):
             raise HTTPException(status_code=404, detail="Note not found")
@@ -301,6 +420,8 @@ async def delete_note(request: DeleteNoteRequest):
         # Delete the file(s)
         if os.path.exists(note_path):
             os.remove(note_path)
+        if os.path.exists(md_path):
+            os.remove(md_path)
 
         if os.path.exists(folder_path):
             # If it's a folder, also delete all children
@@ -309,11 +430,15 @@ async def delete_note(request: DeleteNoteRequest):
 
             children = folder_data.get("children", [])
             for child_id in children:
-                child_note_path = os.path.join(notes_dir, f"{child_id}.json")
-                child_folder_path = os.path.join(notes_dir, f"{child_id}.folder.json")
+                safe_child_id = child_id.replace("/", "_")
+                child_note_path = os.path.join(notes_dir, f"{safe_child_id}.json")
+                child_folder_path = os.path.join(notes_dir, f"{safe_child_id}.folder.json")
+                child_md_path = os.path.join(notes_dir, f"{safe_child_id}.md")
 
                 if os.path.exists(child_note_path):
                     os.remove(child_note_path)
+                if os.path.exists(child_md_path):
+                    os.remove(child_md_path)
                 if os.path.exists(child_folder_path):
                     os.remove(child_folder_path)
 
@@ -326,8 +451,12 @@ async def delete_note(request: DeleteNoteRequest):
                 with open(filepath, "r") as f:
                     data = json.load(f)
 
-                if "children" in data and note_id in data["children"]:
-                    data["children"].remove(note_id)
+                if "children" in data and (note_id in data["children"] or safe_note_id in data["children"]):
+                    data["children"] = [
+                        child
+                        for child in data["children"]
+                        if child not in (note_id, safe_note_id)
+                    ]
                     with open(filepath, "w") as f:
                         json.dump(data, f, indent=2)
 
