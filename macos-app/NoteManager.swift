@@ -111,7 +111,8 @@ class NoteManager: ObservableObject {
     @Published var isBackendAvailable: Bool = false
     @Published var lastError: String? = nil
 
-    private let backendURL = URL(string: "http://127.0.0.1:8000")!
+    // Include trailing slash so relative paths resolve correctly (e.g. "/update-note")
+    private let backendURL = URL(string: "http://127.0.0.1:8000/")!
     private var cancellables = Set<AnyCancellable>()
 
     struct Note: Codable, Identifiable {

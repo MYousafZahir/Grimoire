@@ -13,7 +13,8 @@ class SearchManager: ObservableObject {
 
     @Published var isLoading: Bool = false
 
-    private let backendURL = URL(string: "http://127.0.0.1:8000")!
+    // Trailing slash ensures relative endpoints resolve to the correct base
+    private let backendURL = URL(string: "http://127.0.0.1:8000/")!
     private var cancellables = Set<AnyCancellable>()
     private var searchTimers: [String: Timer] = [:]
 

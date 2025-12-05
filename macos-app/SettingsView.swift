@@ -3,7 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var noteManager: NoteManager
 
-    @AppStorage("backendURL") private var backendURL: String = "http://127.0.0.1:8000"
+    // Default includes trailing slash so relative API paths resolve correctly
+    @AppStorage("backendURL") private var backendURL: String = "http://127.0.0.1:8000/"
     @AppStorage("debounceDelay") private var debounceDelay: Double = 0.5
     @AppStorage("chunkSize") private var chunkSize: String = "300"
     @AppStorage("maxBacklinks") private var maxBacklinks: String = "10"
