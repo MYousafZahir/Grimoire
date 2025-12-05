@@ -5,9 +5,10 @@ struct BacklinksView: View {
     @EnvironmentObject private var noteManager: NoteManager
     @Binding var selectedNoteId: String?
 
-    @State private var isLoading: Bool = false
     @State private var searchResults: [SearchResult] = []
     @State private var selectedResultId: String? = nil
+    @State private var currentNoteContent: String = ""
+    @State private var hasTriggeredInitialSearch: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,7 +19,7 @@ struct BacklinksView: View {
 
                 Spacer()
 
-                if isLoading {
+                if searchManager.isLoading {
                     ProgressView()
                         .scaleEffect(0.8)
                 }
@@ -30,7 +31,7 @@ struct BacklinksView: View {
                 }
                 .help("Refresh Backlinks")
                 .buttonStyle(.plain)
-                .disabled(isLoading)
+                .disabled(searchManager.isLoading)
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -104,44 +105,109 @@ struct BacklinksView: View {
             }
         }
         .onChange(of: selectedNoteId) { newValue in
-            if let noteId = newValue {
-                loadBacklinksForNote(noteId)
-            } else {
+            if newValue != nil {
+                // Clear results when changing notes, new results will come from search
                 searchResults = []
+                hasTriggeredInitialSearch = false
+                currentNoteContent = ""
+                print(
+                    "BacklinksView: Note selection changed to \(newValue ?? "nil"), cleared results"
+                )
             }
         }
         .onReceive(searchManager.$searchResults) { results in
             if let currentNoteId = selectedNoteId,
                 let noteResults = results[currentNoteId]
             {
-                // Convert SearchAPIResult to SearchResult
-                let convertedResults = noteResults.map { apiResult in
-                    // Get note title from note manager if available
-                    let noteTitle =
-                        noteManager.getNote(id: apiResult.noteId)?.title ?? "Unknown Note"
+                print(
+                    "BacklinksView: Received \(noteResults.count) search results for note \(currentNoteId)"
+                )
+                // Convert SearchAPIResult to SearchResult, filtering out results from the current note
+                let convertedResults =
+                    noteResults
+                    .filter { $0.noteId != currentNoteId }  // Don't show backlinks to self
+                    .map { apiResult in
+                        // Get note title from note manager if available
+                        let noteTitle =
+                            noteManager.getNote(id: apiResult.noteId)?.title ?? apiResult.noteId
 
-                    return SearchResult(
-                        noteId: apiResult.noteId,
-                        noteTitle: noteTitle,
-                        chunkId: apiResult.chunkId,
-                        excerpt: apiResult.text,
-                        score: Double(apiResult.score)
+                        return SearchResult(
+                            noteId: apiResult.noteId,
+                            noteTitle: noteTitle,
+                            chunkId: apiResult.chunkId,
+                            excerpt: apiResult.text,
+                            score: Double(apiResult.score)
+                        )
+                    }
+                print(
+                    "BacklinksView: After filtering self-references, showing \(convertedResults.count) results"
+                )
+                searchResults = convertedResults
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("NoteContentChanged"))
+        ) { notification in
+            // When note content changes, trigger a backlinks search
+            if let noteId = notification.userInfo?["noteId"] as? String,
+                let content = notification.userInfo?["content"] as? String,
+                noteId == selectedNoteId
+            {
+                print(
+                    "BacklinksView: Received NoteContentChanged for note \(noteId), content length: \(content.count)"
+                )
+                currentNoteContent = content
+                // Trigger search with the note content to find related notes
+                let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedContent.count > 10 {
+                    print(
+                        "BacklinksView: Triggering search for note \(noteId) with \(trimmedContent.count) chars"
+                    )
+                    hasTriggeredInitialSearch = true
+                    searchManager.debouncedSearch(noteId: noteId, text: trimmedContent)
+                } else {
+                    print(
+                        "BacklinksView: Content too short (\(trimmedContent.count) chars), skipping search"
                     )
                 }
-                searchResults = convertedResults
-                isLoading = false
             }
         }
         .onAppear {
-            if let noteId = selectedNoteId {
-                loadBacklinksForNote(noteId)
+            print("BacklinksView: View appeared, selectedNoteId: \(selectedNoteId ?? "nil")")
+            // If we have a selected note but haven't searched yet, try to trigger a search
+            if let noteId = selectedNoteId, !hasTriggeredInitialSearch {
+                print("BacklinksView: Will wait for content to load for note \(noteId)")
             }
         }
     }
 
     private func refreshBacklinks() {
         if let noteId = selectedNoteId {
-            loadBacklinksForNote(noteId)
+            print("BacklinksView: Refresh requested for note \(noteId)")
+            // Re-trigger search with current content
+            let trimmedContent = currentNoteContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedContent.count > 10 {
+                print(
+                    "BacklinksView: Refreshing with cached content (\(trimmedContent.count) chars)")
+                searchManager.debouncedSearch(noteId: noteId, text: trimmedContent)
+            } else {
+                // If no content cached, try to get it from note manager
+                if let note = noteManager.getNote(id: noteId) {
+                    let content = note.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if content.count > 10 {
+                        print(
+                            "BacklinksView: Refreshing with note manager content (\(content.count) chars)"
+                        )
+                        searchManager.debouncedSearch(noteId: noteId, text: content)
+                    } else {
+                        print(
+                            "BacklinksView: Note content too short to search (\(content.count) chars)"
+                        )
+                    }
+                } else {
+                    print("BacklinksView: Could not get note from note manager")
+                }
+            }
         }
     }
 
@@ -156,14 +222,6 @@ struct BacklinksView: View {
 
     private func hideResult(_ resultId: String) {
         searchResults.removeAll { $0.id == resultId }
-    }
-
-    private func loadBacklinksForNote(_ noteId: String) {
-        isLoading = true
-        searchResults = []
-
-        // Search manager will update searchResults via @Published property
-        // We'll handle the conversion in onReceive above
     }
 }
 

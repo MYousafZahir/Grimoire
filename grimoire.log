@@ -1,4 +1,4 @@
-[2025-12-04 10:54:13] Starting Grimoire launcher
+[2025-12-04 20:08:46] Starting Grimoire launcher
 Requirement already satisfied: pip in ./backend/venv/lib/python3.13/site-packages (25.3)
 Requirement already satisfied: fastapi<1.0.0,>=0.104.0 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (0.123.5)
 Requirement already satisfied: uvicorn<1.0.0,>=0.24.0 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (0.38.0)
@@ -56,40 +56,3 @@ Attempting to load sentence-transformers model: all-MiniLM-L6-v2
 ✓ Created SentenceTransformer instance
 ✓ Model loaded successfully. Embedding dimension: 384
 Model is ready
-🔨 Building Grimoire macOS app...
-[0;34m🧹 Cleaning previous builds...[0m
-[0;34m🏗️  Building project...[0m
---- xcodebuild: WARNING: Using the first of multiple matching destinations:
-{ platform:macOS, arch:arm64, id:00008132-000C09D01405801C, name:My Mac }
-{ platform:macOS, arch:x86_64, id:00008132-000C09D01405801C, name:My Mac }
-/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/NoteManager.swift:175:41: warning: conditional cast from 'URLSession.DataTaskPublisher.Failure' (aka 'URLError') to 'URLError' always succeeds
-                if let urlError = error as? URLError {
-                                        ^
-/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/SearchManager.swift:64:13: warning: variable 'signpostID' was never used; consider replacing with '_' or removing it
-        var signpostID: OSSignpostID? = nil
-            ^~~~~~~~~~
-            _
-/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/EditorView.swift:121:27: warning: immutable value 'selectedNoteId' was never used; consider replacing with '_' or removing it
-            } else if let selectedNoteId = selectedNoteId, !isFolderSelected {
-                      ~~~~^~~~~~~~~~~~~~
-                      _
-/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/EditorView.swift:212:19: warning: immutable value 'selectedNoteId' was never used; consider replacing with '_' or removing it
-        guard let selectedNoteId = selectedNoteId, !isFolderSelected else { return }
-              ~~~~^~~~~~~~~~~~~~
-              _
-/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.xcodeproj: warning: The Copy Bundle Resources build phase contains this target's Info.plist file '/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Resources/Info.plist'. (in target 'Grimoire' from project 'Grimoire')
-[0;32m✅ Build successful![0m
-[0;32m✅ App copied to: /Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.app[0m
-[0;34m📦 App size: 2.2M[0m
-
-[0;32m══════════════════════════════════════════════════════════════[0m
-[0;32m🎉 Build complete![0m
-[0;32m══════════════════════════════════════════════════════════════[0m
-
-[0;34mNext steps:[0m
-  1. [1;33mMake sure backend is running:[0m ../grimoire backend
-  2. [1;33mLaunch the app:[0m open Grimoire.app
-  3. [1;33mOr run full setup:[0m ../grimoire
-
-[0;34mBackend URL:[0m http://127.0.0.1:8000
-[0;34mAPI Docs:[0m http://127.0.0.1:8000/docs

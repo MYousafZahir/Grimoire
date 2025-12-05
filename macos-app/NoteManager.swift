@@ -391,7 +391,10 @@ class NoteManager: ObservableObject {
             .store(in: &cancellables)
     }
 
-    func saveNoteContent(noteId: String, content: String, completion: @escaping (Bool) -> Void) {
+    func saveNoteContent(
+        noteId: String, content: String, parentId: String? = nil,
+        completion: @escaping (Bool) -> Void
+    ) {
         // Check backend connection first
         checkBackendConnection { [weak self] isAvailable in
             guard let self = self else {
@@ -417,7 +420,8 @@ class NoteManager: ObservableObject {
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-            let requestBody = UpdateNoteRequest(note_id: noteId, content: content)
+            let requestBody = UpdateNoteRequest(
+                note_id: noteId, content: content, parent_id: parentId)
 
             do {
                 request.httpBody = try JSONEncoder().encode(requestBody)
@@ -478,13 +482,15 @@ class NoteManager: ObservableObject {
                 print("Backend not available, cannot create note")
                 self.lastError = "Backend not available"
                 // Still create a local note for UI feedback
-                let noteId = self.generateNoteId(parentId: parentId)
+                let noteName = self.generateNoteId(parentId: parentId)
+                let notePath = parentId != nil ? "\(parentId!)/\(noteName)" : noteName
+                // The note ID is the path with slashes replaced by underscores (matching backend behavior)
+                let noteId = notePath.replacingOccurrences(of: "/", with: "_")
                 let title = "New Note (Offline)"
-                let path = parentId != nil ? "\(parentId!)/\(noteId)" : noteId
 
                 // Add to local tree for immediate feedback
                 let newNote = NoteInfo(
-                    id: noteId, title: title, path: path, children: [], type: "note")
+                    id: noteId, title: title, path: notePath, children: [], type: "note")
                 var currentTree = self.noteTree
                 currentTree.append(newNote)
                 self.noteTree = currentTree
@@ -498,14 +504,18 @@ class NoteManager: ObservableObject {
                 return
             }
 
-            let noteId = self.generateNoteId(parentId: parentId)
+            let noteName = self.generateNoteId(parentId: parentId)
+            let notePath = parentId != nil ? "\(parentId!)/\(noteName)" : noteName
+            // The note ID is the path with slashes replaced by underscores (matching backend behavior)
+            let noteId = notePath.replacingOccurrences(of: "/", with: "_")
             let title = "New Note"
-            let path = parentId != nil ? "\(parentId!)/\(noteId)" : noteId
 
-            _ = Note(id: noteId, title: title, path: path, parentId: parentId)
+            _ = Note(id: noteId, title: title, path: notePath, parentId: parentId)
 
-            // Save empty note to backend
-            self.saveNoteContent(noteId: noteId, content: "# \(title)\n\nStart writing here...") {
+            // Save empty note to backend using the flattened noteId (no slashes)
+            self.saveNoteContent(
+                noteId: noteId, content: "# \(title)\n\nStart writing here...", parentId: parentId
+            ) {
                 success in
                 if success {
                     print("Successfully created note: \(noteId)")
@@ -556,22 +566,18 @@ class NoteManager: ObservableObject {
         let timestamp = Int(Date().timeIntervalSince1970)
         let random = Int.random(in: 1000...9999)
 
-        if let parentId = parentId {
-            return "\(parentId)/note_\(timestamp)_\(random)"
-        } else {
-            return "note_\(timestamp)_\(random)"
-        }
+        // Generate just the note name, not the full path
+        // The path will be constructed separately
+        return "note_\(timestamp)_\(random)"
     }
 
     private func generateFolderId(parentId: String?) -> String {
         let timestamp = Int(Date().timeIntervalSince1970)
         let random = Int.random(in: 1000...9999)
 
-        if let parentId = parentId {
-            return "\(parentId)/folder_\(timestamp)_\(random)"
-        } else {
-            return "folder_\(timestamp)_\(random)"
-        }
+        // Generate just the folder name, not the full path
+        // The path will be constructed separately
+        return "folder_\(timestamp)_\(random)"
     }
 
     private func buildNoteTree(from noteInfos: [NoteInfo]) -> [NoteInfo] {
@@ -595,8 +601,11 @@ class NoteManager: ObservableObject {
                 return
             }
 
-            let folderId = self.generateFolderId(parentId: parentId)
-            let folderPath = parentId != nil ? "\(parentId!)/\(folderId)" : folderId
+            let folderName = self.generateFolderId(parentId: parentId)
+            // Construct the full path - parentId already contains the full parent path
+            let folderPath = parentId != nil ? "\(parentId!)/\(folderName)" : folderName
+            // The folder ID is the path with slashes replaced by underscores (matching backend behavior)
+            let folderId = folderPath.replacingOccurrences(of: "/", with: "_")
 
             guard let url = URL(string: "create-folder", relativeTo: self.backendURL) else {
                 self.lastError = "Invalid URL"
@@ -877,6 +886,13 @@ struct NoteContentResponse: Codable {
 struct UpdateNoteRequest: Codable {
     let note_id: String
     let content: String
+    let parent_id: String?
+
+    init(note_id: String, content: String, parent_id: String? = nil) {
+        self.note_id = note_id
+        self.content = content
+        self.parent_id = parent_id
+    }
 }
 
 // MARK: - Preview Support

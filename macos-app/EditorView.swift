@@ -205,6 +205,13 @@ struct EditorView: View {
             lastSavedContent = content
             isEditing = false
             saveStatus = .saved
+
+            // Post notification with loaded content for backlinks
+            NotificationCenter.default.post(
+                name: NSNotification.Name("NoteContentChanged"),
+                object: nil,
+                userInfo: ["noteId": selectedNoteId, "content": content]
+            )
         }
     }
 
@@ -226,6 +233,13 @@ struct EditorView: View {
 
         // Notify parent about text change for semantic search
         onTextChange(newText)
+
+        // Post notification for backlinks view to track content
+        NotificationCenter.default.post(
+            name: NSNotification.Name("NoteContentChanged"),
+            object: nil,
+            userInfo: ["noteId": selectedNoteId, "content": newText]
+        )
     }
 
     private func saveNoteContent() {

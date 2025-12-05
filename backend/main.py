@@ -65,23 +65,88 @@ class DeleteNoteRequest(BaseModel):
     note_id: str
 
 
-# Health check endpoint
+class UpdateNoteRequest(BaseModel):
+    note_id: str
+    content: str
+    parent_id: Optional[str] = None
+
+
+class CreateNoteRequest(BaseModel):
+    note_id: str
+    title: str
+    content: str = ""
+    parent_id: Optional[str] = None
+
+
+# Health check endpoints
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "Grimoire backend is running"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "message": "Grimoire backend is running"}
+
+
+# Get single note content endpoint
+@app.get("/note/{note_id}")
+async def get_note(note_id: str):
+    try:
+        # Normalize note_id - replace slashes with underscores for flat file storage
+        normalized_note_id = note_id.replace("/", "_")
+        print(
+            f"DEBUG: Getting note with id: {note_id}, normalized: {normalized_note_id}"
+        )
+
+        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
+
+        # Try to find the note file
+        note_filename = f"{normalized_note_id}.json"
+        note_filepath = os.path.join(notes_dir, note_filename)
+
+        if not os.path.exists(note_filepath):
+            # Also try without normalization in case note_id is already normalized
+            note_filename = f"{note_id}.json"
+            note_filepath = os.path.join(notes_dir, note_filename)
+
+        if not os.path.exists(note_filepath):
+            print(f"DEBUG: Note not found at {note_filepath}")
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        with open(note_filepath, "r") as f:
+            note_data = json.load(f)
+
+        print(f"DEBUG: Loaded note from {note_filepath}")
+
+        return {
+            "note_id": note_id,
+            "content": note_data.get("content", ""),
+            "title": note_data.get("title", note_id),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR in get_note: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Search endpoint
 @app.post("/search")
 async def search(request: SearchRequest):
     try:
-        # Chunk the search text
-        chunks = chunker.chunk_text(request.text)
+        print(
+            f"DEBUG: Search request for note_id: {request.note_id}, text length: {len(request.text)}"
+        )
+
+        # Chunk the search text using the correct method
+        chunk_results = chunker.chunk(request.text, request.note_id)
 
         # Embed each chunk
         embeddings = []
-        for chunk in chunks:
-            embedding = embedder.embed_text(chunk)
+        for chunk_data in chunk_results:
+            embedding = embedder.embed(chunk_data["text"])
             embeddings.append(embedding)
 
         # Search the index
@@ -93,7 +158,7 @@ async def search(request: SearchRequest):
                     SearchResult(
                         note_id=result["note_id"],
                         chunk_id=result["chunk_id"],
-                        text=result["text"],
+                        text=result["excerpt"],  # indexer returns 'excerpt' not 'text'
                         score=result["score"],
                     )
                 )
@@ -147,6 +212,181 @@ async def get_notes():
         return {"notes": notes}
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Update note endpoint
+@app.post("/update-note")
+async def update_note(request: UpdateNoteRequest):
+    try:
+        note_id = request.note_id
+        content = request.content
+        parent_id = request.parent_id
+
+        # Normalize note_id - replace slashes with underscores for flat file storage
+        normalized_note_id = note_id.replace("/", "_")
+        print(
+            f"DEBUG: Updating note with id: {note_id}, normalized: {normalized_note_id}, parent_id: {parent_id}"
+        )
+
+        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
+        os.makedirs(notes_dir, exist_ok=True)
+
+        # Use normalized note_id for filename
+        note_filename = f"{normalized_note_id}.json"
+        note_filepath = os.path.join(notes_dir, note_filename)
+
+        is_new_note = not os.path.exists(note_filepath)
+
+        if not is_new_note:
+            # Load existing note data
+            with open(note_filepath, "r") as f:
+                note_data = json.load(f)
+            note_data["content"] = content
+            note_data["updated_at"] = str(os.path.getmtime(note_filepath))
+        else:
+            # Create new note - extract a readable title from the note_id
+            title_parts = normalized_note_id.split("_")
+            # Try to create a readable title - use last meaningful part
+            if "note" in title_parts:
+                title = "New Note"
+            else:
+                title = normalized_note_id.replace("_", " ")
+
+            note_data = {
+                "title": title,
+                "content": content,
+                "path": note_id,
+                "parent_id": parent_id,
+                "created_at": str(os.path.getctime(notes_dir)),
+                "updated_at": str(os.path.getctime(notes_dir)),
+            }
+
+        with open(note_filepath, "w") as f:
+            json.dump(note_data, f, indent=2)
+        print(f"DEBUG: Wrote note data to {note_filepath}")
+
+        # Update search index with the new/updated content
+        try:
+            print(f"DEBUG: Updating search index for note: {normalized_note_id}")
+
+            # Chunk the content
+            chunks = chunker.chunk(content, normalized_note_id)
+
+            # Embed each chunk
+            chunk_embeddings = []
+            for chunk_data in chunks:
+                embedding = embedder.embed(chunk_data["text"])
+                chunk_embeddings.append(
+                    {
+                        "chunk_id": chunk_data["chunk_id"],
+                        "text": chunk_data["text"],
+                        "embedding": embedding,
+                    }
+                )
+
+            # Update the index
+            indexer.update_note(normalized_note_id, chunk_embeddings)
+            print(
+                f"DEBUG: Successfully updated search index for note: {normalized_note_id} with {len(chunk_embeddings)} chunks"
+            )
+        except Exception as e:
+            print(
+                f"WARNING: Failed to update search index for note {normalized_note_id}: {e}"
+            )
+            import traceback
+
+            print(f"Traceback: {traceback.format_exc()}")
+            # Don't fail the request if indexing fails
+
+        # If this is a new note with a parent, update the parent folder's children
+        if is_new_note and parent_id:
+            # Normalize parent_id as well
+            normalized_parent_id = parent_id.replace("/", "_")
+            parent_filename = f"{normalized_parent_id}.folder.json"
+            parent_filepath = os.path.join(notes_dir, parent_filename)
+            print(f"DEBUG: Looking for parent folder at: {parent_filepath}")
+
+            if os.path.exists(parent_filepath):
+                with open(parent_filepath, "r") as f:
+                    parent_data = json.load(f)
+
+                if normalized_note_id not in parent_data.get("children", []):
+                    parent_data.setdefault("children", []).append(normalized_note_id)
+                    with open(parent_filepath, "w") as f:
+                        json.dump(parent_data, f, indent=2)
+                    print(
+                        f"DEBUG: Updated parent folder {normalized_parent_id} with child {normalized_note_id}"
+                    )
+            else:
+                print(f"DEBUG: Parent folder not found at {parent_filepath}")
+
+        return {"success": True, "note_id": normalized_note_id}
+
+    except Exception as e:
+        print(f"ERROR in update_note: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Create note endpoint
+@app.post("/create-note")
+async def create_note(request: CreateNoteRequest):
+    try:
+        note_id = request.note_id
+        title = request.title
+        content = request.content
+        parent_id = request.parent_id
+        print(f"DEBUG: Creating note with id: {note_id}, title: {title}")
+
+        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
+        os.makedirs(notes_dir, exist_ok=True)
+
+        note_filename = f"{note_id}.json"
+        note_filepath = os.path.join(notes_dir, note_filename)
+
+        note_data = {
+            "title": title,
+            "content": content,
+            "path": note_id,
+            "parent_id": parent_id,
+            "created_at": str(os.path.getctime(notes_dir)),
+            "updated_at": str(os.path.getctime(notes_dir)),
+        }
+
+        with open(note_filepath, "w") as f:
+            json.dump(note_data, f, indent=2)
+        print(f"DEBUG: Wrote note data to {note_filepath}")
+
+        # Update parent folder if needed
+        if parent_id:
+            parent_filename = f"{parent_id}.folder.json"
+            parent_filepath = os.path.join(notes_dir, parent_filename)
+
+            if os.path.exists(parent_filepath):
+                with open(parent_filepath, "r") as f:
+                    parent_data = json.load(f)
+
+                if note_id not in parent_data.get("children", []):
+                    parent_data.setdefault("children", []).append(note_id)
+                    with open(parent_filepath, "w") as f:
+                        json.dump(parent_data, f, indent=2)
+                    print(
+                        f"DEBUG: Updated parent folder {parent_id} with child {note_id}"
+                    )
+
+        return {
+            "success": True,
+            "note_id": note_id,
+            "note": {
+                "id": note_id,
+                "title": title,
+                "type": "note",
+                "children": [],
+            },
+        }
+
+    except Exception as e:
+        print(f"ERROR in create_note: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -288,6 +528,7 @@ async def rename_note(request: RenameNoteRequest):
 async def delete_note(request: DeleteNoteRequest):
     try:
         note_id = request.note_id
+        print(f"DEBUG: Deleting note/folder: {note_id}")
 
         notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
 
@@ -298,9 +539,14 @@ async def delete_note(request: DeleteNoteRequest):
         if not os.path.exists(note_path) and not os.path.exists(folder_path):
             raise HTTPException(status_code=404, detail="Note not found")
 
+        # Collect all note IDs that will be deleted (for index cleanup)
+        notes_to_delete = []
+
         # Delete the file(s)
         if os.path.exists(note_path):
+            notes_to_delete.append(note_id)
             os.remove(note_path)
+            print(f"DEBUG: Deleted note file: {note_path}")
 
         if os.path.exists(folder_path):
             # If it's a folder, also delete all children
@@ -313,11 +559,15 @@ async def delete_note(request: DeleteNoteRequest):
                 child_folder_path = os.path.join(notes_dir, f"{child_id}.folder.json")
 
                 if os.path.exists(child_note_path):
+                    notes_to_delete.append(child_id)
                     os.remove(child_note_path)
+                    print(f"DEBUG: Deleted child note: {child_id}")
                 if os.path.exists(child_folder_path):
                     os.remove(child_folder_path)
+                    print(f"DEBUG: Deleted child folder: {child_id}")
 
             os.remove(folder_path)
+            print(f"DEBUG: Deleted folder file: {folder_path}")
 
         # Remove from parent references
         for filename in os.listdir(notes_dir):
@@ -331,9 +581,109 @@ async def delete_note(request: DeleteNoteRequest):
                     with open(filepath, "w") as f:
                         json.dump(data, f, indent=2)
 
+        # Remove from search index
+        print(
+            f"DEBUG: Removing {len(notes_to_delete)} note(s) from search index: {notes_to_delete}"
+        )
+        for deleted_note_id in notes_to_delete:
+            try:
+                success, _ = indexer.delete_note(deleted_note_id)
+                if success:
+                    print(f"DEBUG: Removed {deleted_note_id} from search index")
+                else:
+                    print(
+                        f"DEBUG: Note {deleted_note_id} was not in search index (may not have had indexed content)"
+                    )
+            except Exception as e:
+                print(f"WARNING: Failed to remove {deleted_note_id} from index: {e}")
+
         return {"success": True}
 
     except Exception as e:
+        print(f"ERROR in delete_note: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Admin endpoint to rebuild search index
+@app.post("/admin/rebuild-index")
+async def rebuild_index():
+    """
+    Rebuild the entire search index from scratch.
+    This will remove stale entries for deleted notes.
+    """
+    try:
+        print("DEBUG: Starting index rebuild...")
+        notes_dir = os.path.join(os.path.dirname(__file__), "storage", "notes")
+
+        if not os.path.exists(notes_dir):
+            return {
+                "success": True,
+                "message": "No notes directory found, nothing to index",
+                "notes_indexed": 0,
+            }
+
+        # Clear the index
+        indexer.clear()
+        print("DEBUG: Cleared existing index")
+
+        # Rebuild from all existing notes
+        notes_indexed = 0
+        notes_failed = []
+
+        for filename in os.listdir(notes_dir):
+            if filename.endswith(".json") and not filename.endswith(".folder.json"):
+                note_path = os.path.join(notes_dir, filename)
+                note_id = filename.replace(".json", "")
+
+                try:
+                    with open(note_path, "r") as f:
+                        note_data = json.load(f)
+
+                    content = note_data.get("content", "")
+                    if content and content.strip():
+                        # Chunk the content
+                        chunks = chunker.chunk(content, note_id)
+
+                        # Embed each chunk
+                        chunk_embeddings = []
+                        for chunk_data in chunks:
+                            embedding = embedder.embed(chunk_data["text"])
+                            chunk_embeddings.append(
+                                {
+                                    "chunk_id": chunk_data["chunk_id"],
+                                    "text": chunk_data["text"],
+                                    "embedding": embedding,
+                                }
+                            )
+
+                        # Update the index
+                        indexer.update_note(note_id, chunk_embeddings)
+                        notes_indexed += 1
+                        print(
+                            f"DEBUG: Indexed note: {note_id} with {len(chunk_embeddings)} chunks"
+                        )
+                    else:
+                        print(f"DEBUG: Skipped empty note: {note_id}")
+
+                except Exception as e:
+                    print(f"ERROR: Failed to index note {note_id}: {e}")
+                    notes_failed.append(note_id)
+
+        message = f"Successfully rebuilt index with {notes_indexed} notes"
+        if notes_failed:
+            message += f". Failed to index {len(notes_failed)} notes: {notes_failed}"
+
+        print(f"DEBUG: {message}")
+
+        return {
+            "success": True,
+            "message": message,
+            "notes_indexed": notes_indexed,
+            "notes_failed": len(notes_failed),
+        }
+
+    except Exception as e:
+        print(f"ERROR in rebuild_index: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

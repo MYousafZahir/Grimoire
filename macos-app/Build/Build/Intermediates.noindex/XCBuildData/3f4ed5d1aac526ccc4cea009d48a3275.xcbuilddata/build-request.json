@@ -1,0 +1,63 @@
+{
+  "buildCommand" : {
+    "command" : "build",
+    "skipDependencies" : false,
+    "style" : "buildOnly"
+  },
+  "configuredTargets" : [
+    {
+      "guid" : "0815feb16e6dd2fc6060dee24dd30f7aa8c25e6c01f8bda7f2502ce2316261ee"
+    }
+  ],
+  "containerPath" : "/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.xcodeproj",
+  "continueBuildingAfterErrors" : false,
+  "dependencyScope" : "workspace",
+  "enableIndexBuildArena" : false,
+  "hideShellScriptEnvironment" : false,
+  "parameters" : {
+    "action" : "build",
+    "activeArchitecture" : "arm64",
+    "activeRunDestination" : {
+      "disableOnlyActiveArch" : false,
+      "platform" : "macosx",
+      "sdk" : "macosx26.1",
+      "sdkVariant" : "macos",
+      "supportedArchitectures" : [
+        "arm64e",
+        "arm64",
+        "x86_64"
+      ],
+      "targetArchitecture" : "arm64"
+    },
+    "arenaInfo" : {
+      "buildIntermediatesPath" : "/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Build/Build/Intermediates.noindex",
+      "buildProductsPath" : "/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Build/Build/Products",
+      "derivedDataPath" : "/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Build",
+      "indexDataStoreFolderPath" : "/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Build/Index.noindex/DataStore",
+      "indexEnableDataStore" : true,
+      "indexPCHPath" : "/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Build/Index.noindex/PrecompiledHeaders",
+      "pchPath" : "/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Build/Build/Intermediates.noindex/PrecompiledHeaders"
+    },
+    "configurationName" : "Debug",
+    "overrides" : {
+      "commandLine" : {
+        "table" : {
+
+        }
+      },
+      "synthesized" : {
+        "table" : {
+          "ACTION" : "build",
+          "ENABLE_PREVIEWS" : "NO",
+          "ENABLE_XOJIT_PREVIEWS" : "YES"
+        }
+      }
+    }
+  },
+  "schemeCommand" : "launch",
+  "showNonLoggedProgress" : true,
+  "useDryRun" : false,
+  "useImplicitDependencies" : true,
+  "useLegacyBuildLocations" : false,
+  "useParallelTargets" : true
+}
