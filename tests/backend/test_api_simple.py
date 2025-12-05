@@ -49,7 +49,16 @@ class TestFastAPISimple:
         self.mock_embedder.return_value = self.mock_embedder_instance
         self.mock_indexer.return_value = self.mock_indexer_instance
 
-        # Patch os.path.join for note files
+        # Use the instance methods directly for attribute access on the patched objects
+        self.mock_chunker.chunk = self.mock_chunker_instance.chunk
+        self.mock_embedder.embed = self.mock_embedder_instance.embed
+        self.mock_indexer.search = self.mock_indexer_instance.search
+        self.mock_indexer.update_note = self.mock_indexer_instance.update_note
+        self.mock_indexer.get_note_tree = self.mock_indexer_instance.get_note_tree
+        self.mock_indexer.rename_note = self.mock_indexer_instance.rename_note
+
+        # Patch os.path.join for note files, but keep a reference to the real join
+        self.real_path_join = os.path.join
         self.path_patch = patch("main.os.path.join")
         self.mock_path_join = self.path_patch.start()
 
@@ -57,35 +66,37 @@ class TestFastAPISimple:
             # Simple mock that redirects note files to test directory
             if (
                 len(args) > 1
-                and "notes" in str(args[0])
+                and any("notes" in str(arg) for arg in args)
                 and str(args[-1]).endswith(".md")
             ):
-                return os.path.join(self.test_notes_dir, args[-1])
-            # Use actual os.path.join for other paths
-            import os as real_os
-
-            return real_os.path.join(*args)
+                return self.real_path_join(self.test_notes_dir, args[-1])
+            # Use the preserved real join for other paths
+            return self.real_path_join(*args)
 
         self.mock_path_join.side_effect = mock_path_join
 
         # Patch os.makedirs
+        self.real_makedirs = os.makedirs
         self.makedirs_patch = patch("main.os.makedirs")
         self.mock_makedirs = self.makedirs_patch.start()
-        self.mock_makedirs.return_value = None
+        self.mock_makedirs.side_effect = lambda *args, **kwargs: self.real_makedirs(
+            *args, **kwargs
+        )
 
         # Patch os.path.exists for note files
+        self.real_path_exists = os.path.exists
         self.exists_patch = patch("main.os.path.exists")
         self.mock_exists = self.exists_patch.start()
 
         def mock_exists(path):
             # Check if file exists in test directory
             if path.startswith(self.test_notes_dir):
-                return os.path.exists(path)
+                return self.real_path_exists(path)
             # For other paths, return True for notes we create
             if "notes" in str(path) and str(path).endswith(".md"):
                 note_name = os.path.basename(path)
                 test_path = os.path.join(self.test_notes_dir, note_name)
-                return os.path.exists(test_path)
+                return self.real_path_exists(test_path)
             return True
 
         self.mock_exists.side_effect = mock_exists
