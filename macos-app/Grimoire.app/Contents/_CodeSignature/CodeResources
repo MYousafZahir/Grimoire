@@ -6,7 +6,7 @@
 	<dict>
 		<key>Resources/Info.plist</key>
 		<data>
-		kF8hazJO13sjo7f4YLUL6SJtRdk=
+		0jkRYojNH6AImA+mGJeNMPlkFdk=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -15,10 +15,10 @@
 		<dict>
 			<key>cdhash</key>
 			<data>
-			MICo0Y5/KVTFQC0SYa2XwURruMQ=
+			JqyAyVlcIrbBDtF+vwKylbTRNVc=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"3080a8d18e7f2954c5402d1261ad97c1446bb8c4"</string>
+			<string>cdhash H"26ac80c9595c22b6c10ed17ebf02b295b4d13557"</string>
 		</dict>
 		<key>MacOS/__preview.dylib</key>
 		<dict>
@@ -33,7 +33,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			DKh+GFfH/6XqifRNp4QmTshsZsUCeEKEcddSeT138Bg=
+			rtY6NBHYKQYtbjChyX5tWArJnaxPTqMUspNCfSf8zvA=
 			</data>
 		</dict>
 	</dict>

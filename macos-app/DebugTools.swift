@@ -365,7 +365,7 @@ class RaceConditionDetector {
 
     func beginOperation(_ operationId: String, file: String = #file, line: Int = #line) {
         queue.async {
-            let threadId = pthread_mach_thread_np(pthread_self())
+            let threadId = UInt64(pthread_mach_thread_np(pthread_self()))
 
             if let existing = self.operations[operationId] {
                 DebugLogger.shared.warning(
@@ -394,10 +394,7 @@ class RaceConditionDetector {
             "\(type(of: object))_\(Unmanaged.passUnretained(object as AnyObject).toOpaque())"
         beginOperation("\(operation)_\(objectId)", file: file, line: line)
 
-        // Use defer to ensure we always end the operation
-        defer {
-            endOperation("\(operation)_\(objectId)")
-        }
+        endOperation("\(operation)_\(objectId)")
     }
 }
 

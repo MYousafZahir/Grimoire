@@ -81,16 +81,21 @@ Grimoire/
 ├── PROJECT_SUMMARY.md          # Technical architecture
 │
 ├── backend/                    # Python backend (semantic search)
-│   ├── main.py                # FastAPI server
-│   ├── chunker.py             # Text chunking
-│   ├── embedder.py            # Embedding generation
-│   ├── indexer.py             # FAISS vector search
-│   └── storage/               # Local data storage
+│   ├── main.py                 # FastAPI app + routes
+│   ├── models.py               # Shared API/domain models
+│   ├── services.py             # Note/search orchestration
+│   ├── storage.py              # Filesystem-backed note store
+│   ├── chunker.py              # Text chunking
+│   ├── embedder.py             # Embedding generation
+│   ├── indexer.py              # FAISS vector search
+│   └── storage/                # Local data storage
 │
-└── macos-app/                 # SwiftUI macOS application
-    ├── Views/                 # SwiftUI views
-    ├── FileManager/           # Note management
-    ├── Networking/            # API communication
+└── macos-app/                  # SwiftUI macOS application
+    ├── Domain/                 # Core models
+    ├── Data/                   # API repositories
+    ├── Stores/                 # App state containers
+    ├── Resources/              # App metadata
+    ├── *.swift                 # Views + app entry points
     └── create_xcode_project.sh # Xcode project setup
 ```
 
@@ -98,12 +103,14 @@ Grimoire/
 
 ### Backend (Python)
 - **FastAPI Server**: REST API for note management and search
+- **Service Layer**: `services.py` coordinates storage and search
 - **Sentence-Transformers**: Converts text to semantic vectors
 - **FAISS**: Fast similarity search for finding related content
 - **Local Storage**: All data stored in `backend/storage/`
 
 ### Frontend (SwiftUI macOS App)
 - **Three-Pane Layout**: Sidebar (notes), Editor (markdown), Backlinks (connections)
+- **Domain/Data/Stores**: Clear separation of models, networking, and state
 - **Real-Time Search**: Debounced search as you type
 - **Native macOS**: Full macOS integration and keyboard shortcuts
 - **Auto-Save**: Configurable auto-save with preview
@@ -132,11 +139,14 @@ open Grimoire.xcodeproj
 ## 📊 API Endpoints
 
 The backend provides these REST endpoints:
-- `GET /` - Health check
-- `POST /search` - Semantic search for related excerpts
+- `GET /` and `GET /health` - Health checks
+- `GET /notes` (alias `/all-notes`) - Hierarchical note tree
+- `GET /note/{note_id:path}` - Get note content
 - `POST /update-note` - Save note and update embeddings
-- `GET /all-notes` - Get hierarchical note structure
-- `GET /note/{note_id}` - Get note content
+- `POST /create-note` / `/create-folder` - Create items
+- `POST /rename-note` / `/delete-note` - Modify items
+- `POST /search` - Semantic search for related excerpts
+- `POST /admin/rebuild-index` - Rebuild vector index
 
 ## 🎨 Features
 

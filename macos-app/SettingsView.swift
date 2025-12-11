@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject private var noteManager: NoteManager
+    @EnvironmentObject private var noteStore: NoteStore
 
     @AppStorage("backendURL") private var backendURL: String = "http://127.0.0.1:8000"
     @AppStorage("debounceDelay") private var debounceDelay: Double = 0.5
@@ -237,9 +237,4 @@ struct SettingsView: View {
             NSWorkspace.shared.open(url)
         }
     }
-}
-
-#Preview {
-    SettingsView()
-        .environmentObject(NoteManager())
 }

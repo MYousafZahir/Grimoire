@@ -1,8 +1,11 @@
 {
+  "id": "note_1764904207_5040",
   "title": "New Note",
-  "content": "",
   "path": "note_1764904207_5040",
   "parent_id": null,
+  "children": [],
   "created_at": "1764904186.294023",
-  "updated_at": "1764904225.1078355"
+  "updated_at": 1765265750.793121,
+  "type": "note",
+  "content": "This is a test. This is this the asdf this ia nf;aewflasdfn; tthisa naen is fafdaljf klsadfkllk lasdf. this a fdadkvlasdtjfggkds;adf. thisa is a an eroasdfkljklndfs. thsdifpklkl;kl;fdkfdklalksdfl kfdslaf. thas \nthidks thfaskd k. \nfjjd kakkskj d"
 }

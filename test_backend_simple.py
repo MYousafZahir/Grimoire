@@ -157,9 +157,13 @@ def test_api_endpoints():
     # This is a structural test, not actually calling the API
     endpoints = [
         ("GET", "/", "Health check"),
-        ("GET", "/all-notes", "Get note hierarchy"),
-        ("GET", "/note/{note_id}", "Get note content"),
+        ("GET", "/health", "Health check"),
+        ("GET", "/notes", "Get note hierarchy"),
+        ("GET", "/note/{note_id:path}", "Get note content"),
         ("POST", "/update-note", "Save note content"),
+        ("POST", "/create-folder", "Create folder"),
+        ("POST", "/rename-note", "Rename note"),
+        ("POST", "/delete-note", "Delete note or folder"),
         ("POST", "/search", "Semantic search"),
     ]
 

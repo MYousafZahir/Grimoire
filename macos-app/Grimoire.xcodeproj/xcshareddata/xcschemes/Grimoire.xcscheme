@@ -43,15 +43,15 @@
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "GRIM_MAIN"
-            BuildableName = "Grimoire.app"
-            BlueprintName = "Grimoire"
-            ReferencedContainer = "container:Grimoire.xcodeproj">
-         </BuildableReference>
-      </BuildableProductRunnable>
-      <AdditionalOptions>
-      </AdditionalOptions>
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "GRIM_MAIN"
+               BuildableName = "Grimoire.app"
+               BlueprintName = "Grimoire"
+               ReferencedContainer = "container:Grimoire.xcodeproj">
+            </BuildableReference>
+         </BuildableProductRunnable>
+         <AdditionalOptions>
+         </AdditionalOptions>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -62,14 +62,14 @@
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "GRIM_MAIN"
-            BuildableName = "Grimoire.app"
-            BlueprintName = "Grimoire"
-            ReferencedContainer = "container:Grimoire.xcodeproj">
-         </BuildableReference>
-      </BuildableProductRunnable>
-   </ProfileAction>
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "GRIM_MAIN"
+               BuildableName = "Grimoire.app"
+               BlueprintName = "Grimoire"
+               ReferencedContainer = "container:Grimoire.xcodeproj">
+            </BuildableReference>
+         </BuildableProductRunnable>
+      </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">
    </AnalyzeAction>

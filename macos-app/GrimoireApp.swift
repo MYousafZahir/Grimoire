@@ -2,14 +2,14 @@ import SwiftUI
 
 @main
 struct GrimoireApp: App {
-    @StateObject private var noteManager = NoteManager()
-    @StateObject private var searchManager = SearchManager()
+    @StateObject private var noteStore = NoteStore()
+    @StateObject private var backlinksStore = BacklinksStore()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(noteManager)
-                .environmentObject(searchManager)
+                .environmentObject(noteStore)
+                .environmentObject(backlinksStore)
                 .frame(minWidth: 800, minHeight: 600)
         }
         .windowStyle(.titleBar)
@@ -18,7 +18,7 @@ struct GrimoireApp: App {
         #if os(macOS)
         Settings {
             SettingsView()
-                .environmentObject(noteManager)
+                .environmentObject(noteStore)
         }
         #endif
     }

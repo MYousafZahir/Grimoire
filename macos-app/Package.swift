@@ -30,8 +30,6 @@ let package = Package(
             path: ".",
             exclude: [
                 "Grimoire.xcodeproj",
-                "Grimoire.app",
-                ".build",
                 "build.sh",
                 "build_app.sh",
                 "build_simple.sh",
@@ -39,21 +37,21 @@ let package = Package(
                 "setup_xcode.sh",
                 "XCODE_GUIDE.md",
                 "XCODE_SETUP.md",
-                "Package.swift",  // Exclude this file itself
+                "Package.swift"  // Exclude this file itself
             ],
             sources: [
-                "GrimoireApp.swift",
                 "ContentView.swift",
                 "SidebarView.swift",
                 "EditorView.swift",
                 "BacklinksView.swift",
                 "SettingsView.swift",
-                "NoteManager.swift",
-                "SearchManager.swift",
-                "Views",
-                "FileManager",
-                "Networking",
-                "Resources",
+                "DebugTools.swift",
+                "Domain",
+                "Data",
+                "Stores"
+            ],
+            resources: [
+                .process("Resources")
             ]
         ),
 

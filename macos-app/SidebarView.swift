@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct SidebarView: View {
-    @EnvironmentObject private var noteManager: NoteManager
+    @EnvironmentObject private var noteStore: NoteStore
+    @EnvironmentObject private var backlinksStore: BacklinksStore
     @Binding var selectedNoteId: String?
 
     @State private var expandedFolders: Set<String> = []
@@ -10,22 +11,21 @@ struct SidebarView: View {
     @State private var newNoteName: String = ""
     @State private var folderToDelete: String? = nil
     @State private var showingDeleteConfirmation: Bool = false
-    @State private var folderHasContent: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // Status bar
-            if !noteManager.isBackendAvailable {
+            if noteStore.backendStatus != .online {
                 HStack {
                     Image(systemName: "exclamationmark.triangle")
                         .foregroundColor(.orange)
-                    Text("Using sample data")
+                    Text("Offline mode")
                         .font(.caption)
                         .foregroundColor(.orange)
                     Spacer()
                     Button("Retry") {
-                        noteManager.checkBackendConnection()
-                        noteManager.loadNotes()
+                        Task {
+                            await noteStore.bootstrap()
+                        }
                     }
                     .buttonStyle(.borderless)
                     .font(.caption)
@@ -36,8 +36,7 @@ struct SidebarView: View {
                 .border(Color.orange.opacity(0.3), width: 1)
             }
 
-            // Notes list
-            if noteManager.noteTree.isEmpty {
+            if noteStore.tree.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "note.text.badge.plus")
                         .font(.system(size: 48))
@@ -53,7 +52,7 @@ struct SidebarView: View {
                         .multilineTextAlignment(.center)
 
                     Button("Create New Note") {
-                        noteManager.createNewNote(parentId: nil)
+                        Task { await noteStore.createNote(parentId: nil) }
                     }
                     .buttonStyle(.borderedProminent)
                     .padding(.top, 8)
@@ -62,16 +61,17 @@ struct SidebarView: View {
                 .padding()
             } else {
                 List(selection: $selectedNoteId) {
-                    ForEach(noteManager.noteTree) { noteInfo in
+                    ForEach(noteStore.tree, id: \.id) { noteInfo in
                         NoteRow(
-                            noteInfo: noteInfo, expandedFolders: $expandedFolders,
+                            noteInfo: noteInfo,
+                            expandedFolders: $expandedFolders,
                             selectedNoteId: $selectedNoteId,
                             renamingNoteId: $renamingNoteId,
                             newNoteName: $newNoteName,
                             folderToDelete: $folderToDelete,
                             showingDeleteConfirmation: $showingDeleteConfirmation,
-                            folderHasContent: $folderHasContent,
-                            onDeleteNote: deleteItemImmediately)
+                            onDeleteNote: deleteItem
+                        )
                     }
                 }
                 .listStyle(SidebarListStyle())
@@ -79,35 +79,23 @@ struct SidebarView: View {
         }
         .contextMenu {
             Button("New Note") {
-                noteManager.createNewNote(parentId: nil)
+                Task { await noteStore.createNote(parentId: nil) }
             }
 
             Button("New Folder") {
-                noteManager.createFolder(parentId: nil) { success in
-                    if success {
-                        // Expand the new folder
-                        if let newFolderId = noteManager.noteTree.last?.id {
-                            expandedFolders.insert(newFolderId)
-                        }
-                    }
-                }
+                Task { await noteStore.createFolder(parentId: nil) }
             }
 
             Button("New Child Note") {
                 if let selectedId = selectedNoteId {
-                    noteManager.createNewNote(parentId: selectedId)
+                    Task { await noteStore.createNote(parentId: selectedId) }
                 }
             }
             .disabled(selectedNoteId == nil)
 
             Button("New Child Folder") {
                 if let selectedId = selectedNoteId {
-                    noteManager.createFolder(parentId: selectedId) { success in
-                        if success {
-                            // Expand the parent folder
-                            expandedFolders.insert(selectedId)
-                        }
-                    }
+                    Task { await noteStore.createFolder(parentId: selectedId) }
                 }
             }
             .disabled(selectedNoteId == nil)
@@ -115,10 +103,11 @@ struct SidebarView: View {
             Divider()
 
             Button("Rename") {
-                if let selectedId = selectedNoteId {
+                if let selectedId = selectedNoteId,
+                    let title = noteStore.title(for: selectedId)
+                {
                     renamingNoteId = selectedId
-                    newNoteName =
-                        noteManager.noteTree.first(where: { $0.id == selectedId })?.title ?? ""
+                    newNoteName = title
                 }
             }
             .disabled(selectedNoteId == nil)
@@ -127,16 +116,7 @@ struct SidebarView: View {
 
             Button("Delete", role: .destructive) {
                 if let selectedId = selectedNoteId {
-                    print("DEBUG: Delete button clicked in main context menu for: \(selectedId)")
-                    // Check if this is a folder with content
-                    if isFolderWithContent(noteId: selectedId) {
-                        folderToDelete = selectedId
-                        folderHasContent = true
-                        showingDeleteConfirmation = true
-                    } else {
-                        // For notes or empty folders, delete immediately
-                        deleteItem(noteId: selectedId)
-                    }
+                    confirmDeletion(for: selectedId)
                 }
             }
             .disabled(selectedNoteId == nil)
@@ -145,28 +125,20 @@ struct SidebarView: View {
             ToolbarItem {
                 Menu {
                     Button("New Note") {
-                        noteManager.createNewNote(parentId: nil)
+                        Task { await noteStore.createNote(parentId: nil) }
                     }
                     Button("New Folder") {
-                        noteManager.createFolder(parentId: nil) { success in
-                            if success {
-                                // Expand the new folder
-                                if let newFolderId = noteManager.noteTree.last?.id {
-                                    expandedFolders.insert(newFolderId)
-                                }
-                            }
-                        }
+                        Task { await noteStore.createFolder(parentId: nil) }
                     }
                 } label: {
                     Image(systemName: "plus")
                 }
                 .help("Create New")
-                .disabled(!noteManager.isBackendAvailable && noteManager.noteTree.isEmpty)
             }
 
             ToolbarItem {
                 Button(action: {
-                    noteManager.loadNotes()
+                    Task { await noteStore.refreshTree() }
                 }) {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -176,15 +148,10 @@ struct SidebarView: View {
         .alert("Error", isPresented: $showingErrorAlert) {
             Button("OK") {}
         } message: {
-            if let error = noteManager.lastError {
+            if let error = noteStore.lastError {
                 Text(error)
             } else {
                 Text("An error occurred")
-            }
-        }
-        .onChange(of: noteManager.lastError) { newValue in
-            if newValue != nil {
-                showingErrorAlert = true
             }
         }
         .alert(
@@ -201,361 +168,163 @@ struct SidebarView: View {
             }
             Button("Rename") {
                 if let oldNoteId = renamingNoteId, !newNoteName.isEmpty {
-                    // Generate new note ID based on parent path
-                    let parentPath =
-                        oldNoteId.contains("/")
-                        ? String(oldNoteId.split(separator: "/").dropLast().joined(separator: "/"))
-                        : ""
-                    let newNoteId =
-                        parentPath.isEmpty ? newNoteName : "\(parentPath)/\(newNoteName)"
-
-                    noteManager.renameNote(oldNoteId: oldNoteId, newNoteId: newNoteId) { success in
-                        if !success {
-                            showingErrorAlert = true
-                        }
-                    }
+                    Task { await noteStore.rename(noteId: oldNoteId, newName: newNoteName) }
                 }
                 renamingNoteId = nil
                 newNoteName = ""
             }
         } message: {
-            Text("Enter new name for the note:")
+            Text("Enter new name for the item:")
         }
         .alert(
-            "Delete Folder",
+            "Delete Item",
             isPresented: $showingDeleteConfirmation
         ) {
             Button("Cancel", role: .cancel) {
                 folderToDelete = nil
-                folderHasContent = false
             }
             Button("Delete", role: .destructive) {
                 if let noteId = folderToDelete {
                     deleteItem(noteId: noteId)
                 }
                 folderToDelete = nil
-                folderHasContent = false
             }
         } message: {
-            if folderHasContent {
-                Text(
-                    "This folder contains notes. Deleting it will also delete all notes inside. This action cannot be undone."
-                )
-            } else {
-                Text("Are you sure you want to delete this folder? This action cannot be undone.")
-            }
+            Text(
+                "Deleting will also remove any nested content. This action cannot be undone."
+            )
+        }
+        .onChange(of: noteStore.lastError) { newValue in
+            showingErrorAlert = newValue != nil
+        }
+    }
+
+    private func confirmDeletion(for noteId: String) {
+        if isFolderWithContent(noteId: noteId) {
+            folderToDelete = noteId
+            showingDeleteConfirmation = true
+        } else {
+            deleteItem(noteId: noteId)
         }
     }
 
     private func isFolderWithContent(noteId: String) -> Bool {
-        // Check if the selected item is a folder with content
-        func checkFolder(noteInfo: NoteInfo, targetId: String) -> Bool {
-            if noteInfo.id == targetId {
-                return noteInfo.type == "folder" && !noteInfo.children.isEmpty
-            }
-            // Check children recursively
-            for child in noteInfo.children {
-                if checkFolder(noteInfo: child, targetId: targetId) {
-                    return true
-                }
-            }
-            return false
-        }
+        guard let node = findNode(in: noteStore.tree, id: noteId) else { return false }
+        return node.isFolder && !node.children.isEmpty
+    }
 
-        for noteInfo in noteManager.noteTree {
-            if checkFolder(noteInfo: noteInfo, targetId: noteId) {
-                return true
+    private func findNode(in nodes: [NoteNode], id: String) -> NoteNode? {
+        for node in nodes {
+            if node.id == id { return node }
+            if let match = findNode(in: node.children, id: id) {
+                return match
             }
         }
-        return false
+        return nil
     }
 
     private func deleteItem(noteId: String) {
-        deleteItemWithCompletion(noteId: noteId)
-    }
-
-    private func deleteItemWithCompletion(noteId: String, completion: @escaping () -> Void = {}) {
-        noteManager.deleteNote(noteId: noteId) { success in
-            print("DEBUG: deleteNote completion called with success: \(success)")
-            if !success {
-                print("DEBUG: deleteNote failed, showing error alert")
-                showingErrorAlert = true
-            } else {
-                print("DEBUG: deleteNote succeeded")
-                // Clear selection if this item was selected
-                if selectedNoteId == noteId {
-                    selectedNoteId = nil
-                }
-            }
-            completion()
-        }
-    }
-
-    private func deleteItemImmediately(noteId: String) {
-        noteManager.deleteNote(noteId: noteId) { success in
-            print("DEBUG: deleteNote completion called with success: \(success)")
-            if !success {
-                print("DEBUG: deleteNote failed, showing error alert")
-                showingErrorAlert = true
-            } else {
-                print("DEBUG: deleteNote succeeded")
-                // Clear selection if this item was selected
-                if selectedNoteId == noteId {
-                    selectedNoteId = nil
-                }
+        Task {
+            await noteStore.delete(noteId: noteId)
+            backlinksStore.dropResults(for: noteId)
+            if selectedNoteId == noteId {
+                selectedNoteId = nil
             }
         }
     }
 }
 
 struct NoteRow: View {
-    let noteInfo: NoteInfo
+    let noteInfo: NoteNode
     @Binding var expandedFolders: Set<String>
     @Binding var selectedNoteId: String?
     @Binding var renamingNoteId: String?
     @Binding var newNoteName: String
     @Binding var folderToDelete: String?
     @Binding var showingDeleteConfirmation: Bool
-    @Binding var folderHasContent: Bool
     var onDeleteNote: (String) -> Void
-    @State private var showingErrorAlert: Bool = false
-    @EnvironmentObject private var noteManager: NoteManager
+    @EnvironmentObject private var noteStore: NoteStore
 
     var body: some View {
-        // Debug logging removed - print() returns () which doesn't conform to View
-
-        // Check if this is a folder (has type "folder" or has children)
-
-        // BUG FIX: Handle nil type field for new folders
-        // When type is nil and folder is empty, we can't determine if it's a folder yet
-        let canDetermineFolderType = noteInfo.type != nil || !noteInfo.children.isEmpty
-
-        if !canDetermineFolderType {
-            // This is a newly created folder with nil type - show loading state
-            Label {
-                Text(noteInfo.title)
-                    .lineLimit(1)
-                    .foregroundColor(.secondary)
-            } icon: {
-                ProgressView()
-                    .scaleEffect(0.5)
-                    .foregroundColor(.gray)
-            }
-            .tag(noteInfo.id)
-            .onAppear {
-                // Debug logging removed for build
-            }
-
-        } else {
-            // We have enough information to determine folder type
-            let isFolder = noteInfo.type == "folder" || !noteInfo.children.isEmpty
-
-            if !isFolder {
-                // This is a note (leaf node)
+        if noteInfo.isFolder {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { expandedFolders.contains(noteInfo.id) },
+                    set: { isExpanded in
+                        if isExpanded {
+                            expandedFolders.insert(noteInfo.id)
+                        } else {
+                            expandedFolders.remove(noteInfo.id)
+                        }
+                    }
+                )
+            ) {
+                ForEach(noteInfo.children, id: \.id) { childNoteInfo in
+                    NoteRow(
+                        noteInfo: childNoteInfo,
+                        expandedFolders: $expandedFolders,
+                        selectedNoteId: $selectedNoteId,
+                        renamingNoteId: $renamingNoteId,
+                        newNoteName: $newNoteName,
+                        folderToDelete: $folderToDelete,
+                        showingDeleteConfirmation: $showingDeleteConfirmation,
+                        onDeleteNote: onDeleteNote
+                    )
+                }
+            } label: {
                 Label {
                     Text(noteInfo.title)
                         .lineLimit(1)
                 } icon: {
-                    Image(systemName: "note.text")
-                        .foregroundColor(.blue)
+                    Image(systemName: "folder")
+                        .foregroundColor(.yellow)
                 }
-                .tag(noteInfo.id)
-                .contextMenu {
-                    Button("New Child Note") {
-                        noteManager.createNewNote(parentId: noteInfo.id)
-                    }
-                    .disabled(!noteManager.isBackendAvailable)
-
-                    Button("New Child Folder") {
-                        noteManager.createFolder(parentId: noteInfo.id) { success in
-                            if success {
-                                // Expand this folder
-                                expandedFolders.insert(noteInfo.id)
-                            }
-                        }
-                    }
-                    .disabled(!noteManager.isBackendAvailable)
-
-                    Divider()
-
-                    Button("Rename") {
-                        renamingNoteId = noteInfo.id
-                        newNoteName = noteInfo.title
-                    }
-                    .disabled(!noteManager.isBackendAvailable)
-
-                    Divider()
-
-                    Button("Delete", role: .destructive) {
-                        print("Delete button clicked for note: \(noteInfo.id)")
-                        // Notes don't need confirmation (they have no children)
-                        onDeleteNote(noteInfo.id)
-                    }
-                    .disabled(!noteManager.isBackendAvailable)
+            }
+            .tag(noteInfo.id)
+            .contextMenu {
+                Button("New Child Note") {
+                    Task { await noteStore.createNote(parentId: noteInfo.id) }
                 }
-                .alert("Error", isPresented: $showingErrorAlert) {
-                    Button("OK") {}
-                } message: {
-                    if let error = noteManager.lastError {
-                        Text(error)
-                    } else {
-                        Text("An error occurred")
-                    }
+
+                Button("New Child Folder") {
+                    Task { await noteStore.createFolder(parentId: noteInfo.id) }
                 }
-            } else {
-                // This is a folder
-                DisclosureGroup(
-                    isExpanded: Binding(
-                        get: { expandedFolders.contains(noteInfo.id) },
-                        set: { isExpanded in
-                            if isExpanded {
-                                expandedFolders.insert(noteInfo.id)
-                            } else {
-                                expandedFolders.remove(noteInfo.id)
-                            }
-                        }
-                    )
-                ) {
-                    ForEach(noteInfo.children) { childNoteInfo in
-                        NoteRow(
-                            noteInfo: childNoteInfo,
-                            expandedFolders: $expandedFolders,
-                            selectedNoteId: $selectedNoteId,
-                            renamingNoteId: $renamingNoteId,
-                            newNoteName: $newNoteName,
-                            folderToDelete: $folderToDelete,
-                            showingDeleteConfirmation: $showingDeleteConfirmation,
-                            folderHasContent: $folderHasContent,
-                            onDeleteNote: onDeleteNote
-                        )
-                    }
-                } label: {
-                    Label {
-                        Text(noteInfo.title)
-                            .lineLimit(1)
-                    } icon: {
-                        Image(systemName: "folder")
-                            .foregroundColor(.yellow)
-                    }
+
+                Divider()
+
+                Button("Rename") {
+                    renamingNoteId = noteInfo.id
+                    newNoteName = noteInfo.title
                 }
-                .tag(noteInfo.id)
-                .contextMenu {
-                    Button("New Child Note") {
-                        noteManager.createNewNote(parentId: noteInfo.id)
-                    }
-                    .disabled(!noteManager.isBackendAvailable)
 
-                    Button("New Child Folder") {
-                        noteManager.createFolder(parentId: noteInfo.id) { success in
-                            if success {
-                                // Expand this folder
-                                expandedFolders.insert(noteInfo.id)
-                            }
-                        }
-                    }
-                    .disabled(!noteManager.isBackendAvailable)
+                Divider()
 
-                    Divider()
-
-                    Button("Rename") {
-                        renamingNoteId = noteInfo.id
-                        newNoteName = noteInfo.title
-                    }
-                    .disabled(!noteManager.isBackendAvailable)
-
-                    Divider()
-
-                    Button("Delete", role: .destructive) {
-                        print("Delete button clicked for folder: \(noteInfo.id)")
-                        // Check if folder has content
-                        folderToDelete = noteInfo.id
-                        folderHasContent = !noteInfo.children.isEmpty
-                        showingDeleteConfirmation = true
-                    }
-                    .disabled(!noteManager.isBackendAvailable)
+                Button("Delete", role: .destructive) {
+                    folderToDelete = noteInfo.id
+                    showingDeleteConfirmation = true
                 }
-                .alert("Error", isPresented: $showingErrorAlert) {
-                    Button("OK") {}
-                } message: {
-                    if let error = noteManager.lastError {
-                        Text(error)
-                    } else {
-                        Text("An error occurred")
-                    }
+            }
+        } else {
+            Label {
+                Text(noteInfo.title)
+                    .lineLimit(1)
+            } icon: {
+                Image(systemName: "note.text")
+                    .foregroundColor(.blue)
+            }
+            .tag(noteInfo.id)
+            .contextMenu {
+                Button("Rename") {
+                    renamingNoteId = noteInfo.id
+                    newNoteName = noteInfo.title
+                }
+
+                Divider()
+
+                Button("Delete", role: .destructive) {
+                    onDeleteNote(noteInfo.id)
                 }
             }
         }
     }
-}
-
-struct NoteInfo: Identifiable, Codable {
-    let id: String
-    let title: String
-    let path: String
-    let children: [NoteInfo]
-    let type: String?
-
-    // For preview purposes
-    static func sample() -> [NoteInfo] {
-        return [
-            NoteInfo(
-                id: "welcome",
-                title: "Welcome",
-                path: "welcome",
-                children: [],
-                type: "note"
-            ),
-            NoteInfo(
-                id: "projects",
-                title: "Projects",
-                path: "projects",
-                children: [
-                    NoteInfo(
-                        id: "projects/grimoire",
-                        title: "Grimoire",
-                        path: "projects/grimoire",
-                        children: [
-                            NoteInfo(
-                                id: "projects/grimoire/backend",
-                                title: "Backend",
-                                path: "projects/grimoire/backend",
-                                children: [],
-                                type: "note"
-                            ),
-                            NoteInfo(
-                                id: "projects/grimoire/frontend",
-                                title: "Frontend",
-                                path: "projects/grimoire/frontend",
-                                children: [],
-                                type: "note"
-                            ),
-                        ],
-                        type: "folder"
-                    )
-                ],
-                type: "folder"
-            ),
-            NoteInfo(
-                id: "ideas",
-                title: "Ideas",
-                path: "ideas",
-                children: [],
-                type: "note"
-            ),
-        ]
-    }
-}
-
-// Debug extension to print NoteInfo
-extension NoteInfo {
-    func debugDescription() -> String {
-        return
-            "NoteInfo(id: \(id), title: \(title), type: \(type ?? "nil"), children: \(children.count))"
-    }
-}
-
-#Preview {
-    SidebarView(selectedNoteId: .constant("welcome"))
-        .environmentObject(NoteManager())
-        .frame(width: 250)
 }

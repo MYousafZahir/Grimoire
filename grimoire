@@ -440,8 +440,16 @@ start_backend() {
     cd "$BACKEND_DIR"
     source "${VENV_DIR}/bin/activate"
 
+    RELOAD_FLAG="${GRIMOIRE_BACKEND_RELOAD:-0}"
+    if [ "$RELOAD_FLAG" = "1" ]; then
+        print_warning "Backend hot-reload is enabled (GRIMOIRE_BACKEND_RELOAD=1). This may cancel requests when notes are saved."
+        UVICORN_OPTS="--reload"
+    else
+        UVICORN_OPTS=""
+    fi
+
     # Start uvicorn server
-    uvicorn main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" --reload >> "$LOG_FILE" 2>&1 &
+    uvicorn main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" $UVICORN_OPTS >> "$LOG_FILE" 2>&1 &
     BACKEND_PID=$!
 
     echo "$BACKEND_PID" > "${SCRIPT_DIR}/backend.pid"
@@ -716,17 +724,38 @@ stop_backend() {
 
     if [ -f "$PID_FILE" ]; then
         BACKEND_PID=$(cat "$PID_FILE")
-        if kill "$BACKEND_PID" 2>/dev/null; then
-            print_success "Stopped backend server (PID: $BACKEND_PID)"
-            rm -f "$PID_FILE"
-        else
-            print_warning "Backend server was not running (PID: $BACKEND_PID)"
-            rm -f "$PID_FILE"
+        # Kill the process group to catch uvicorn reload workers
+        if kill "-$BACKEND_PID" 2>/dev/null; then
+            print_step "Sent TERM to backend process group (PGID: $BACKEND_PID)"
+            sleep 1
         fi
+
+        # Clean up any uvicorn/python children that might still be alive
+        pkill -P "$BACKEND_PID" 2>/dev/null || true
+        pkill -f "uvicorn main:app" 2>/dev/null || true
+        pkill -f "python.*main:app" 2>/dev/null || true
+
+        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            print_success "Stopped backend server (PID: $BACKEND_PID)"
+        else
+            print_warning "Backend server may still be running (PID: $BACKEND_PID)"
+        fi
+
+        rm -f "$PID_FILE"
     else
         # Try to find and kill any running backend
-        if pgrep -f "python.*main.py" > /dev/null; then
-            pkill -f "python.*main.py"
+        FOUND=0
+        if pgrep -f "uvicorn main:app" > /dev/null; then
+            pkill -f "uvicorn main:app" && FOUND=1
+        fi
+        if pgrep -f "python.*main:app" > /dev/null; then
+            pkill -f "python.*main:app" && FOUND=1
+        fi
+        if pgrep -f "python.*backend/main.py" > /dev/null; then
+            pkill -f "python.*backend/main.py" && FOUND=1
+        fi
+
+        if [ $FOUND -eq 1 ]; then
             print_success "Stopped backend server(s)"
         else
             print_info "Backend server is not running"

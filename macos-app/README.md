@@ -22,16 +22,15 @@ A native macOS application for semantic note-taking with automatic backlinks.
 ```
 macos-app/
 ├── GrimoireApp.swift              # App entry point
-├── Views/                         # SwiftUI views
-│   ├── ContentView.swift          # Main three-pane layout
-│   ├── SidebarView.swift          # Note hierarchy sidebar
-│   ├── EditorView.swift           # Markdown editor
-│   ├── BacklinksView.swift        # Semantic backlinks panel
-│   └── SettingsView.swift         # App settings
-├── FileManager/
-│   └── NoteManager.swift          # Note management and persistence
-├── Networking/
-│   └── SearchManager.swift        # Semantic search API communication
+├── ContentView.swift              # Main three-pane layout
+├── SidebarView.swift              # Note hierarchy sidebar
+├── EditorView.swift               # Markdown editor
+├── BacklinksView.swift            # Semantic backlinks panel
+├── SettingsView.swift             # App settings
+├── Domain/                        # Domain models
+├── Data/                          # HTTP repositories
+├── Stores/                        # ObservableObject state stores
+├── Resources/                     # App resources
 └── README.md
 ```
 
@@ -78,16 +77,14 @@ Or create a new Xcode project if needed:
 ## Architecture
 
 ### NoteManager
-- Manages note hierarchy and content
-- Handles API communication with backend
-- Provides note tree for sidebar
-- Handles note creation, loading, and saving
+Replaced by `NoteStore` + `HTTPNoteRepository`:
+- `NoteStore` owns tree state, selection, drafts, and save lifecycle (async/await)
+- `HTTPNoteRepository` wraps backend endpoints for notes/folders
 
 ### SearchManager
-- Manages semantic search requests
-- Implements debouncing for real-time search
-- Caches search results
-- Converts API responses to Swift models
+Replaced by `BacklinksStore` + `HTTPSearchRepository`:
+- `BacklinksStore` handles debounced semantic search and result cache per note
+- `HTTPSearchRepository` wraps `/search` backend endpoint
 
 ### Views
 - **ContentView**: Main container with three-pane layout
@@ -100,7 +97,7 @@ Or create a new Xcode project if needed:
 
 The app communicates with the Python backend via REST API:
 
-- `GET /all-notes` - Get note hierarchy for sidebar
+- `GET /notes` - Get note hierarchy for sidebar
 - `GET /note/{note_id}` - Get note content
 - `POST /update-note` - Save note content and update embeddings
 - `POST /search` - Get semantic backlinks for current note
@@ -120,8 +117,7 @@ Settings are stored in UserDefaults and can be accessed via the Settings menu (`
 ### Dependencies
 - SwiftUI for UI components
 - MarkdownUI for markdown rendering (if using preview feature)
-- URLSession for networking
-- Combine for reactive programming
+- URLSession + async/await for networking
 
 ### Key Features Implementation
 
@@ -137,8 +133,8 @@ The app includes preview data for testing UI components without a running backen
 ```swift
 #Preview {
     ContentView()
-        .environmentObject(NoteManager.preview)
-        .environmentObject(SearchManager.preview)
+        .environmentObject(NoteStore())
+        .environmentObject(BacklinksStore())
 }
 ```
 

@@ -1,25 +1,21 @@
 import SwiftUI
 
 struct BacklinksView: View {
-    @EnvironmentObject private var searchManager: SearchManager
-    @EnvironmentObject private var noteManager: NoteManager
+    @EnvironmentObject private var backlinksStore: BacklinksStore
+    @EnvironmentObject private var noteStore: NoteStore
     @Binding var selectedNoteId: String?
 
-    @State private var searchResults: [SearchResult] = []
     @State private var selectedResultId: String? = nil
-    @State private var currentNoteContent: String = ""
-    @State private var hasTriggeredInitialSearch: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Semantic Backlinks")
                     .font(.headline)
 
                 Spacer()
 
-                if searchManager.isLoading {
+                if backlinksStore.isSearching {
                     ProgressView()
                         .scaleEffect(0.8)
                 }
@@ -31,15 +27,14 @@ struct BacklinksView: View {
                 }
                 .help("Refresh Backlinks")
                 .buttonStyle(.plain)
-                .disabled(searchManager.isLoading)
+                .disabled(backlinksStore.isSearching)
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
             .background(Color(NSColor.controlBackgroundColor))
             .border(Color(NSColor.separatorColor), width: 1)
 
-            // Results list
-            if searchResults.isEmpty {
+            if backlinksStore.results.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "link")
                         .font(.system(size: 48))
@@ -60,7 +55,7 @@ struct BacklinksView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(selection: $selectedResultId) {
-                    ForEach(searchResults) { result in
+                    ForEach(backlinksStore.results, id: \.id) { result in
                         BacklinkRow(result: result, selectedNoteId: $selectedNoteId)
                             .tag(result.id)
                             .contextMenu {
@@ -83,16 +78,15 @@ struct BacklinksView: View {
                 .listStyle(.plain)
             }
 
-            // Footer with stats
-            if !searchResults.isEmpty {
+            if !backlinksStore.results.isEmpty {
                 HStack {
-                    Text("\(searchResults.count) related excerpts")
+                    Text("\(backlinksStore.results.count) related excerpts")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
                     Spacer()
 
-                    if let topScore = searchResults.first?.score {
+                    if let topScore = backlinksStore.results.first?.score {
                         Text("Top similarity: \(Int(topScore * 100))%")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -104,111 +98,13 @@ struct BacklinksView: View {
                 .border(Color(NSColor.separatorColor), width: 1)
             }
         }
-        .onChange(of: selectedNoteId) { newValue in
-            if newValue != nil {
-                // Clear results when changing notes, new results will come from search
-                searchResults = []
-                hasTriggeredInitialSearch = false
-                currentNoteContent = ""
-                print(
-                    "BacklinksView: Note selection changed to \(newValue ?? "nil"), cleared results"
-                )
-            }
-        }
-        .onReceive(searchManager.$searchResults) { results in
-            if let currentNoteId = selectedNoteId,
-                let noteResults = results[currentNoteId]
-            {
-                print(
-                    "BacklinksView: Received \(noteResults.count) search results for note \(currentNoteId)"
-                )
-                // Convert SearchAPIResult to SearchResult, filtering out results from the current note
-                let convertedResults =
-                    noteResults
-                    .filter { $0.noteId != currentNoteId }  // Don't show backlinks to self
-                    .map { apiResult in
-                        // Get note title from note manager if available
-                        let noteTitle =
-                            noteManager.getNote(id: apiResult.noteId)?.title ?? apiResult.noteId
-
-                        return SearchResult(
-                            noteId: apiResult.noteId,
-                            noteTitle: noteTitle,
-                            chunkId: apiResult.chunkId,
-                            excerpt: apiResult.text,
-                            score: Double(apiResult.score)
-                        )
-                    }
-                print(
-                    "BacklinksView: After filtering self-references, showing \(convertedResults.count) results"
-                )
-                searchResults = convertedResults
-            }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: NSNotification.Name("NoteContentChanged"))
-        ) { notification in
-            // When note content changes, trigger a backlinks search
-            if let noteId = notification.userInfo?["noteId"] as? String,
-                let content = notification.userInfo?["content"] as? String,
-                noteId == selectedNoteId
-            {
-                print(
-                    "BacklinksView: Received NoteContentChanged for note \(noteId), content length: \(content.count)"
-                )
-                currentNoteContent = content
-                // Trigger search with the note content to find related notes
-                let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmedContent.count > 10 {
-                    print(
-                        "BacklinksView: Triggering search for note \(noteId) with \(trimmedContent.count) chars"
-                    )
-                    hasTriggeredInitialSearch = true
-                    searchManager.debouncedSearch(noteId: noteId, text: trimmedContent)
-                } else {
-                    print(
-                        "BacklinksView: Content too short (\(trimmedContent.count) chars), skipping search"
-                    )
-                }
-            }
-        }
-        .onAppear {
-            print("BacklinksView: View appeared, selectedNoteId: \(selectedNoteId ?? "nil")")
-            // If we have a selected note but haven't searched yet, try to trigger a search
-            if let noteId = selectedNoteId, !hasTriggeredInitialSearch {
-                print("BacklinksView: Will wait for content to load for note \(noteId)")
-            }
+        .onChange(of: selectedNoteId) { _ in
+            backlinksStore.clear()
         }
     }
 
     private func refreshBacklinks() {
-        if let noteId = selectedNoteId {
-            print("BacklinksView: Refresh requested for note \(noteId)")
-            // Re-trigger search with current content
-            let trimmedContent = currentNoteContent.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmedContent.count > 10 {
-                print(
-                    "BacklinksView: Refreshing with cached content (\(trimmedContent.count) chars)")
-                searchManager.debouncedSearch(noteId: noteId, text: trimmedContent)
-            } else {
-                // If no content cached, try to get it from note manager
-                if let note = noteManager.getNote(id: noteId) {
-                    let content = note.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if content.count > 10 {
-                        print(
-                            "BacklinksView: Refreshing with note manager content (\(content.count) chars)"
-                        )
-                        searchManager.debouncedSearch(noteId: noteId, text: content)
-                    } else {
-                        print(
-                            "BacklinksView: Note content too short to search (\(content.count) chars)"
-                        )
-                    }
-                } else {
-                    print("BacklinksView: Could not get note from note manager")
-                }
-            }
-        }
+        backlinksStore.refresh { noteStore.title(for: $0) }
     }
 
     private func openNote(_ noteId: String) {
@@ -221,18 +117,16 @@ struct BacklinksView: View {
     }
 
     private func hideResult(_ resultId: String) {
-        searchResults.removeAll { $0.id == resultId }
+        backlinksStore.results.removeAll { $0.id == resultId }
     }
 }
 
 struct BacklinkRow: View {
-    let result: SearchResult
+    let result: Backlink
     @Binding var selectedNoteId: String?
-    @EnvironmentObject private var noteManager: NoteManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Note title
             HStack {
                 Image(systemName: "note.text")
                     .font(.caption)
@@ -246,7 +140,6 @@ struct BacklinkRow: View {
 
                 Spacer()
 
-                // Similarity score
                 Text("\(Int(result.score * 100))%")
                     .font(.caption)
                     .fontWeight(.semibold)
@@ -259,14 +152,12 @@ struct BacklinkRow: View {
                     )
             }
 
-            // Excerpt
             Text(result.excerpt)
                 .font(.body)
                 .lineLimit(3)
                 .foregroundColor(.primary)
                 .padding(.leading, 20)
 
-            // Context info
             HStack {
                 Text("From: \(result.noteId)")
                     .font(.caption)
@@ -311,67 +202,4 @@ struct BacklinkRow: View {
             return .red
         }
     }
-}
-
-struct SearchResult: Identifiable, Codable {
-    let id: String
-    let noteId: String
-    let noteTitle: String
-    let chunkId: String
-    let excerpt: String
-    let score: Double
-
-    init(noteId: String, noteTitle: String, chunkId: String, excerpt: String, score: Double) {
-        self.id = "\(noteId)_\(chunkId)"
-        self.noteId = noteId
-        self.noteTitle = noteTitle
-        self.chunkId = chunkId
-        self.excerpt = excerpt
-        self.score = score
-    }
-
-    // For preview
-    static func sample() -> [SearchResult] {
-        return [
-            SearchResult(
-                noteId: "machine-learning",
-                noteTitle: "Machine Learning Basics",
-                chunkId: "ml_1",
-                excerpt:
-                    "Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed.",
-                score: 0.92
-            ),
-            SearchResult(
-                noteId: "neural-networks",
-                noteTitle: "Neural Networks",
-                chunkId: "nn_3",
-                excerpt:
-                    "Neural networks are computing systems inspired by biological neural networks that constitute animal brains. They learn to perform tasks by considering examples.",
-                score: 0.87
-            ),
-            SearchResult(
-                noteId: "data-science",
-                noteTitle: "Data Science Workflow",
-                chunkId: "ds_2",
-                excerpt:
-                    "The typical data science workflow involves data collection, cleaning, exploration, modeling, and interpretation of results.",
-                score: 0.76
-            ),
-            SearchResult(
-                noteId: "python-ml",
-                noteTitle: "Python for ML",
-                chunkId: "pyml_4",
-                excerpt:
-                    "Python has become the dominant programming language for machine learning due to its extensive libraries like scikit-learn, TensorFlow, and PyTorch.",
-                score: 0.68
-            ),
-        ]
-    }
-}
-
-#Preview {
-    BacklinksView(selectedNoteId: .constant("welcome"))
-        .environmentObject(SearchManager())
-        .environmentObject(NoteManager())
-        .frame(width: 300, height: 600)
 }

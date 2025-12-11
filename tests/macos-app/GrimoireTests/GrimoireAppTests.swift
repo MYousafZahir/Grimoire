@@ -36,7 +36,7 @@ final class GrimoireAppTests: XCTestCase {
     // MARK: - Environment Objects Tests
 
     func testEnvironmentObjectsInjection() {
-        // Test that NoteManager and SearchManager are properly injected
+        // Test that NoteStore and BacklinksStore are properly injected
         let app = GrimoireApp()
 
         // The app should create @StateObject instances
@@ -44,16 +44,16 @@ final class GrimoireAppTests: XCTestCase {
         // This test verifies the pattern is followed
     }
 
-    func testNoteManagerCreation() {
-        // NoteManager should be created as a @StateObject
+    func testNoteStoreCreation() {
+        // NoteStore should be created as a @StateObject
         let app = GrimoireApp()
 
         // We can't directly access @StateObject properties from tests
         // This test documents the expected behavior
     }
 
-    func testSearchManagerCreation() {
-        // SearchManager should be created as a @StateObject
+    func testBacklinksStoreCreation() {
+        // BacklinksStore should be created as a @StateObject
         let app = GrimoireApp()
 
         // We can't directly access @StateObject properties from tests
@@ -116,8 +116,8 @@ final class GrimoireAppTests: XCTestCase {
         // Note: Previews are compile-time only, not runtime
 
         let preview = ContentView()
-            .environmentObject(NoteManager.preview)
-            .environmentObject(SearchManager.preview)
+            .environmentObject(NoteStore())
+            .environmentObject(BacklinksStore())
 
         XCTAssertNotNil(preview)
     }
@@ -131,7 +131,7 @@ final class GrimoireAppTests: XCTestCase {
 
     func testAppInitialState() {
         // When the app launches:
-        // 1. NoteManager and SearchManager should be created
+        // 1. NoteStore and BacklinksStore should be created
         // 2. ContentView should be displayed
         // 3. Window should have proper size constraints
         // 4. Settings menu should be available on macOS
@@ -162,14 +162,14 @@ final class GrimoireAppTests: XCTestCase {
 
     func testAppHandlesMissingBackendGracefully() {
         // When backend is not available:
-        // 1. NoteManager should handle errors gracefully
+        // 1. NoteStore should handle errors gracefully
         // 2. UI should show appropriate state
         // 3. App should not crash
     }
 
     func testAppHandlesNetworkErrors() {
         // When network requests fail:
-        // 1. SearchManager should handle errors
+        // 1. BacklinksStore should handle errors
         // 2. UI should show appropriate feedback
         // 3. App should remain responsive
     }
@@ -219,4 +219,12 @@ final class GrimoireAppTests: XCTestCase {
         // - Separation of concerns
         // - Clear naming conventions
     }
+}
+
+extension GrimoireAppTests {
+    static var allTests = [
+        ("testGrimoireAppInitialization", testGrimoireAppInitialization),
+        ("testGrimoireAppBody", testGrimoireAppBody),
+        ("testPreviewCompilation", testPreviewCompilation),
+    ]
 }

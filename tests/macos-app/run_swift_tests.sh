@@ -81,8 +81,11 @@ MAIN_FILES=(
     "macos-app/EditorView.swift"
     "macos-app/BacklinksView.swift"
     "macos-app/SettingsView.swift"
-    "macos-app/NoteManager.swift"
-    "macos-app/SearchManager.swift"
+    "macos-app/Domain/Models.swift"
+    "macos-app/Data/NoteRepository.swift"
+    "macos-app/Data/SearchRepository.swift"
+    "macos-app/Stores/NoteStore.swift"
+    "macos-app/Stores/BacklinksStore.swift"
 )
 
 syntax_errors=0

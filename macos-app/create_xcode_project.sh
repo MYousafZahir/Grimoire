@@ -90,7 +90,7 @@ cat > "${SCHEMES_DIR}/${PROJECT_NAME}.xcscheme" << 'EOF'
                BlueprintIdentifier = "GRIM_MAIN"
                BuildableName = "Grimoire.app"
                BlueprintName = "Grimoire"
-               ReferencedContainer = "container:">
+               ReferencedContainer = "container:Grimoire.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -116,15 +116,15 @@ cat > "${SCHEMES_DIR}/${PROJECT_NAME}.xcscheme" << 'EOF'
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "GRIM_MAIN"
-            BuildableName = "Grimoire.app"
-            BlueprintName = "Grimoire"
-            ReferencedContainer = "container:">
-         </BuildableReference>
-      </BuildableProductRunnable>
-      <AdditionalOptions>
-      </AdditionalOptions>
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "GRIM_MAIN"
+               BuildableName = "Grimoire.app"
+               BlueprintName = "Grimoire"
+               ReferencedContainer = "container:Grimoire.xcodeproj">
+            </BuildableReference>
+         </BuildableProductRunnable>
+         <AdditionalOptions>
+         </AdditionalOptions>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -135,14 +135,14 @@ cat > "${SCHEMES_DIR}/${PROJECT_NAME}.xcscheme" << 'EOF'
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "GRIM_MAIN"
-            BuildableName = "Grimoire.app"
-            BlueprintName = "Grimoire"
-            ReferencedContainer = "container:">
-         </BuildableReference>
-      </BuildableProductRunnable>
-   </ProfileAction>
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "GRIM_MAIN"
+               BuildableName = "Grimoire.app"
+               BlueprintName = "Grimoire"
+               ReferencedContainer = "container:Grimoire.xcodeproj">
+            </BuildableReference>
+         </BuildableProductRunnable>
+      </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">
    </AnalyzeAction>
@@ -198,8 +198,12 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 		GRIM_EDITOR_BUILD /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_EDITOR /* EditorView.swift */; };
 		GRIM_BACKLINKS_BUILD /* BacklinksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_BACKLINKS /* BacklinksView.swift */; };
 		GRIM_SETTINGS_BUILD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_SETTINGS /* SettingsView.swift */; };
-		GRIM_NOTEMGR_BUILD /* NoteManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_NOTEMGR /* NoteManager.swift */; };
-		GRIM_SEARCHMGR_BUILD /* SearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_SEARCHMGR /* SearchManager.swift */; };
+		GRIM_DEBUG_BUILD /* DebugTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DEBUG /* DebugTools.swift */; };
+		GRIM_DOMAIN_MODELS_BUILD /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DOMAIN_MODELS /* Models.swift */; };
+		GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_NOTE_REPO /* NoteRepository.swift */; };
+		GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */; };
+		GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_NOTE /* NoteStore.swift */; };
+		GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_BACKLINK /* BacklinksStore.swift */; };
 		GRIM_INFOPLIST_BUILD /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = GRIM_INFOPLIST /* Info.plist */; };
 /* End PBXBuildFile section */
 
@@ -210,8 +214,12 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 		GRIM_EDITOR /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		GRIM_BACKLINKS /* BacklinksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklinksView.swift; sourceTree = "<group>"; };
 		GRIM_SETTINGS /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		GRIM_NOTEMGR /* NoteManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteManager.swift; sourceTree = "<group>"; };
-		GRIM_SEARCHMGR /* SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchManager.swift; sourceTree = "<group>"; };
+		GRIM_DEBUG /* DebugTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugTools.swift; sourceTree = "<group>"; };
+		GRIM_DOMAIN_MODELS /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		GRIM_DATA_NOTE_REPO /* NoteRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteRepository.swift; sourceTree = "<group>"; };
+		GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepository.swift; sourceTree = "<group>"; };
+		GRIM_STORE_NOTE /* NoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStore.swift; sourceTree = "<group>"; };
+		GRIM_STORE_BACKLINK /* BacklinksStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklinksStore.swift; sourceTree = "<group>"; };
 		GRIM_INFOPLIST /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		GRIM_PRODUCT /* Grimoire.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Grimoire.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -241,8 +249,10 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 			children = (
 				GRIM_APP,
 				GRIM_VIEWS_GROUP,
-				GRIM_FILEMGR_GROUP,
-				GRIM_NETWORKING_GROUP,
+				GRIM_GROUP_DOMAIN,
+				GRIM_GROUP_DATA,
+				GRIM_GROUP_STORES,
+				GRIM_DEBUG,
 			);
 			name = Sources;
 			sourceTree = "<group>";
@@ -257,25 +267,36 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 				GRIM_SETTINGS,
 			);
 			name = Views;
-			path = Views;
+			path = "";
 			sourceTree = "<group>";
 		};
-		GRIM_FILEMGR_GROUP = {
+		GRIM_GROUP_DOMAIN = {
 			isa = PBXGroup;
 			children = (
-				GRIM_NOTEMGR,
+				GRIM_DOMAIN_MODELS,
 			);
-			name = FileManager;
-			path = FileManager;
+			name = Domain;
+			path = Domain;
 			sourceTree = "<group>";
 		};
-		GRIM_NETWORKING_GROUP = {
+		GRIM_GROUP_DATA = {
 			isa = PBXGroup;
 			children = (
-				GRIM_SEARCHMGR,
+				GRIM_DATA_NOTE_REPO,
+				GRIM_DATA_SEARCH_REPO,
 			);
-			name = Networking;
-			path = Networking;
+			name = Data;
+			path = Data;
+			sourceTree = "<group>";
+		};
+		GRIM_GROUP_STORES = {
+			isa = PBXGroup;
+			children = (
+				GRIM_STORE_NOTE,
+				GRIM_STORE_BACKLINK,
+			);
+			name = Stores;
+			path = Stores;
 			sourceTree = "<group>";
 		};
 		GRIM_GROUP_RESOURCES = {
@@ -370,8 +391,12 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 				GRIM_EDITOR_BUILD /* EditorView.swift in Sources */,
 				GRIM_BACKLINKS_BUILD /* BacklinksView.swift in Sources */,
 				GRIM_SETTINGS_BUILD /* SettingsView.swift in Sources */,
-				GRIM_NOTEMGR_BUILD /* NoteManager.swift in Sources */,
-				GRIM_SEARCHMGR_BUILD /* SearchManager.swift in Sources */,
+				GRIM_DEBUG_BUILD /* DebugTools.swift in Sources */,
+				GRIM_DOMAIN_MODELS_BUILD /* Models.swift in Sources */,
+				GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */,
+				GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */,
+				GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */,
+				GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
