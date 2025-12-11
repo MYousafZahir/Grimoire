@@ -28,6 +28,7 @@ final class NoteStore: ObservableObject {
     private let repository: NoteRepository
     private var lastSavedContent: String = ""
     private var loadTask: Task<Void, Never>?
+    private var saveRevision: Int = 0
     private let cancelledCode = URLError.Code.cancelled
 
     init(repository: NoteRepository = HTTPNoteRepository()) {
@@ -52,6 +53,7 @@ final class NoteStore: ObservableObject {
             backendStatus = .online
             lastError = nil
         } catch {
+            if isCancellation(error) { return }
             backendStatus = .offline
             lastError = error.localizedDescription
             if tree.isEmpty {
@@ -121,10 +123,14 @@ final class NoteStore: ObservableObject {
 
     func saveDraft() async {
         guard let noteId = selection, currentNoteKind == .note else { return }
-        guard currentContent != lastSavedContent else {
+        let contentToSave = currentContent
+        guard contentToSave != lastSavedContent else {
             saveState = .idle
             return
         }
+
+        saveRevision += 1
+        let revision = saveRevision
 
         saveState = .saving
         lastError = nil
@@ -132,19 +138,25 @@ final class NoteStore: ObservableObject {
         do {
             try await repository.saveContent(
                 noteId: noteId,
-                content: currentContent,
+                content: contentToSave,
                 parentId: parentId(for: noteId)
             )
-            lastSavedContent = currentContent
-            saveState = .idle
-            lastError = nil
+            if revision == saveRevision {
+                lastSavedContent = contentToSave
+                saveState = currentContent == contentToSave ? .idle : .editing
+                lastError = nil
+            }
         } catch {
-            // Treat any failure during in-flight edits as non-fatal; stay in editing state
-            saveState = .editing
-            lastError = nil
-            #if DEBUG
-            print("SaveDraft suppressed error: \(error.localizedDescription)")
-            #endif
+            if !isCancellation(error) {
+                #if DEBUG
+                print("SaveDraft suppressed error: \(error.localizedDescription)")
+                #endif
+            }
+            if revision == saveRevision {
+                // Treat any failure during in-flight edits as non-fatal; stay in editing state
+                saveState = .editing
+                lastError = nil
+            }
         }
     }
 
@@ -162,6 +174,7 @@ final class NoteStore: ObservableObject {
             select(newId)
             return newId
         } catch {
+            if isCancellation(error) { return nil }
             lastError = error.localizedDescription
             return nil
         }
@@ -177,6 +190,7 @@ final class NoteStore: ObservableObject {
             select(folder.id)
             return folder.id
         } catch {
+            if isCancellation(error) { return nil }
             lastError = error.localizedDescription
             return nil
         }
@@ -192,6 +206,7 @@ final class NoteStore: ObservableObject {
                 select(newName)
             }
         } catch {
+            if isCancellation(error) { return }
             lastError = error.localizedDescription
         }
     }
@@ -204,6 +219,7 @@ final class NoteStore: ObservableObject {
                 select(nil)
             }
         } catch {
+            if isCancellation(error) { return }
             lastError = error.localizedDescription
         }
     }

@@ -1,54 +1,166 @@
-[2025-12-11 15:53:16] Starting Grimoire launcher
-Requirement already satisfied: pip in ./backend/venv/lib/python3.13/site-packages (25.3)
-Requirement already satisfied: fastapi<1.0.0,>=0.104.0 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (0.124.0)
-Requirement already satisfied: uvicorn<1.0.0,>=0.24.0 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (0.38.0)
-Requirement already satisfied: sentence-transformers<3.0.0,>=2.2.2 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (2.7.0)
-Requirement already satisfied: faiss-cpu<2.0.0,>=1.13.0 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 4)) (1.13.1)
-Requirement already satisfied: numpy<2.0.0,>=1.24.0 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 5)) (1.26.4)
-Requirement already satisfied: pydantic<3.0.0,>=2.5.0 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 6)) (2.12.5)
-Requirement already satisfied: python-multipart<1.0.0,>=0.0.6 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 7)) (0.0.20)
-Requirement already satisfied: starlette<0.51.0,>=0.40.0 in ./backend/venv/lib/python3.13/site-packages (from fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (0.50.0)
-Requirement already satisfied: typing-extensions>=4.8.0 in ./backend/venv/lib/python3.13/site-packages (from fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (4.15.0)
-Requirement already satisfied: annotated-doc>=0.0.2 in ./backend/venv/lib/python3.13/site-packages (from fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (0.0.4)
-Requirement already satisfied: click>=7.0 in ./backend/venv/lib/python3.13/site-packages (from uvicorn<1.0.0,>=0.24.0->uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (8.3.1)
-Requirement already satisfied: h11>=0.8 in ./backend/venv/lib/python3.13/site-packages (from uvicorn<1.0.0,>=0.24.0->uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (0.16.0)
-Requirement already satisfied: transformers<5.0.0,>=4.34.0 in ./backend/venv/lib/python3.13/site-packages (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (4.57.3)
-Requirement already satisfied: tqdm in ./backend/venv/lib/python3.13/site-packages (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (4.67.1)
-Requirement already satisfied: torch>=1.11.0 in ./backend/venv/lib/python3.13/site-packages (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (2.9.1)
-Requirement already satisfied: scikit-learn in ./backend/venv/lib/python3.13/site-packages (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (1.7.2)
-Requirement already satisfied: scipy in ./backend/venv/lib/python3.13/site-packages (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (1.16.3)
-Requirement already satisfied: huggingface-hub>=0.15.1 in ./backend/venv/lib/python3.13/site-packages (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (0.36.0)
-Requirement already satisfied: Pillow in ./backend/venv/lib/python3.13/site-packages (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (12.0.0)
-Requirement already satisfied: packaging in ./backend/venv/lib/python3.13/site-packages (from faiss-cpu<2.0.0,>=1.13.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 4)) (25.0)
-Requirement already satisfied: annotated-types>=0.6.0 in ./backend/venv/lib/python3.13/site-packages (from pydantic<3.0.0,>=2.5.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 6)) (0.7.0)
-Requirement already satisfied: pydantic-core==2.41.5 in ./backend/venv/lib/python3.13/site-packages (from pydantic<3.0.0,>=2.5.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 6)) (2.41.5)
-Requirement already satisfied: typing-inspection>=0.4.2 in ./backend/venv/lib/python3.13/site-packages (from pydantic<3.0.0,>=2.5.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 6)) (0.4.2)
-Requirement already satisfied: anyio<5,>=3.6.2 in ./backend/venv/lib/python3.13/site-packages (from starlette<0.51.0,>=0.40.0->fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (4.12.0)
-Requirement already satisfied: idna>=2.8 in ./backend/venv/lib/python3.13/site-packages (from anyio<5,>=3.6.2->starlette<0.51.0,>=0.40.0->fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (3.11)
-Requirement already satisfied: filelock in ./backend/venv/lib/python3.13/site-packages (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (3.20.0)
-Requirement already satisfied: pyyaml>=5.1 in ./backend/venv/lib/python3.13/site-packages (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (6.0.3)
-Requirement already satisfied: regex!=2019.12.17 in ./backend/venv/lib/python3.13/site-packages (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (2025.11.3)
-Requirement already satisfied: requests in ./backend/venv/lib/python3.13/site-packages (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (2.32.5)
-Requirement already satisfied: tokenizers<=0.23.0,>=0.22.0 in ./backend/venv/lib/python3.13/site-packages (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (0.22.1)
-Requirement already satisfied: safetensors>=0.4.3 in ./backend/venv/lib/python3.13/site-packages (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (0.7.0)
-Requirement already satisfied: fsspec>=2023.5.0 in ./backend/venv/lib/python3.13/site-packages (from huggingface-hub>=0.15.1->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (2025.12.0)
-Requirement already satisfied: hf-xet<2.0.0,>=1.1.3 in ./backend/venv/lib/python3.13/site-packages (from huggingface-hub>=0.15.1->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (1.2.0)
-Requirement already satisfied: httptools>=0.6.3 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (0.7.1)
-Requirement already satisfied: python-dotenv>=0.13 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (1.2.1)
-Requirement already satisfied: uvloop>=0.15.1 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (0.22.1)
-Requirement already satisfied: watchfiles>=0.13 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (1.1.1)
-Requirement already satisfied: websockets>=10.4 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (15.0.1)
-Requirement already satisfied: setuptools in ./backend/venv/lib/python3.13/site-packages (from torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (80.9.0)
-Requirement already satisfied: sympy>=1.13.3 in ./backend/venv/lib/python3.13/site-packages (from torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (1.14.0)
-Requirement already satisfied: networkx>=2.5.1 in ./backend/venv/lib/python3.13/site-packages (from torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (3.6.1)
-Requirement already satisfied: jinja2 in ./backend/venv/lib/python3.13/site-packages (from torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (3.1.6)
-Requirement already satisfied: mpmath<1.4,>=1.1.0 in ./backend/venv/lib/python3.13/site-packages (from sympy>=1.13.3->torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (1.3.0)
-Requirement already satisfied: MarkupSafe>=2.0 in ./backend/venv/lib/python3.13/site-packages (from jinja2->torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (3.0.3)
-Requirement already satisfied: charset_normalizer<4,>=2 in ./backend/venv/lib/python3.13/site-packages (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (3.4.4)
-Requirement already satisfied: urllib3<3,>=1.21.1 in ./backend/venv/lib/python3.13/site-packages (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (2.6.1)
-Requirement already satisfied: certifi>=2017.4.17 in ./backend/venv/lib/python3.13/site-packages (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (2025.11.12)
-Requirement already satisfied: joblib>=1.2.0 in ./backend/venv/lib/python3.13/site-packages (from scikit-learn->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (1.5.2)
-Requirement already satisfied: threadpoolctl>=3.1.0 in ./backend/venv/lib/python3.13/site-packages (from scikit-learn->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3)) (3.6.0)
+[2025-12-11 16:36:25] Starting Grimoire launcher
+Requirement already satisfied: pip in ./backend/venv/lib/python3.13/site-packages (25.1.1)
+Collecting pip
+  Using cached pip-25.3-py3-none-any.whl.metadata (4.7 kB)
+Using cached pip-25.3-py3-none-any.whl (1.8 MB)
+Installing collected packages: pip
+  Attempting uninstall: pip
+    Found existing installation: pip 25.1.1
+    Uninstalling pip-25.1.1:
+      Successfully uninstalled pip-25.1.1
+Successfully installed pip-25.3
+Collecting fastapi<1.0.0,>=0.104.0 (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1))
+  Downloading fastapi-0.124.2-py3-none-any.whl.metadata (30 kB)
+Collecting uvicorn<1.0.0,>=0.24.0 (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
+  Using cached uvicorn-0.38.0-py3-none-any.whl.metadata (6.8 kB)
+Collecting sentence-transformers<3.0.0,>=2.2.2 (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached sentence_transformers-2.7.0-py3-none-any.whl.metadata (11 kB)
+Collecting faiss-cpu<2.0.0,>=1.13.0 (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 4))
+  Using cached faiss_cpu-1.13.1-cp310-abi3-macosx_14_0_arm64.whl.metadata (7.6 kB)
+Collecting numpy<2.0.0,>=1.24.0 (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 5))
+  Using cached numpy-1.26.4-cp313-cp313-macosx_26_0_arm64.whl
+Collecting pydantic<3.0.0,>=2.5.0 (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 6))
+  Using cached pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+Collecting python-multipart<1.0.0,>=0.0.6 (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 7))
+  Using cached python_multipart-0.0.20-py3-none-any.whl.metadata (1.8 kB)
+Collecting starlette<0.51.0,>=0.40.0 (from fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1))
+  Using cached starlette-0.50.0-py3-none-any.whl.metadata (6.3 kB)
+Collecting typing-extensions>=4.8.0 (from fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1))
+  Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting annotated-doc>=0.0.2 (from fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1))
+  Using cached annotated_doc-0.0.4-py3-none-any.whl.metadata (6.6 kB)
+Collecting click>=7.0 (from uvicorn<1.0.0,>=0.24.0->uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
+  Using cached click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+Collecting h11>=0.8 (from uvicorn<1.0.0,>=0.24.0->uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
+  Using cached h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+Collecting transformers<5.0.0,>=4.34.0 (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached transformers-4.57.3-py3-none-any.whl.metadata (43 kB)
+Collecting tqdm (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached tqdm-4.67.1-py3-none-any.whl.metadata (57 kB)
+Collecting torch>=1.11.0 (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached torch-2.9.1-cp313-none-macosx_11_0_arm64.whl.metadata (30 kB)
+Collecting scikit-learn (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Downloading scikit_learn-1.8.0-cp313-cp313-macosx_12_0_arm64.whl.metadata (11 kB)
+Collecting scipy (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached scipy-1.16.3-cp313-cp313-macosx_14_0_arm64.whl.metadata (62 kB)
+Collecting huggingface-hub>=0.15.1 (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Downloading huggingface_hub-1.2.2-py3-none-any.whl.metadata (13 kB)
+Collecting Pillow (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached pillow-12.0.0-cp313-cp313-macosx_11_0_arm64.whl.metadata (8.8 kB)
+Collecting packaging (from faiss-cpu<2.0.0,>=1.13.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 4))
+  Using cached packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting annotated-types>=0.6.0 (from pydantic<3.0.0,>=2.5.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 6))
+  Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.41.5 (from pydantic<3.0.0,>=2.5.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 6))
+  Using cached pydantic_core-2.41.5-cp313-cp313-macosx_11_0_arm64.whl.metadata (7.3 kB)
+Collecting typing-inspection>=0.4.2 (from pydantic<3.0.0,>=2.5.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 6))
+  Using cached typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting anyio<5,>=3.6.2 (from starlette<0.51.0,>=0.40.0->fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1))
+  Using cached anyio-4.12.0-py3-none-any.whl.metadata (4.3 kB)
+Collecting idna>=2.8 (from anyio<5,>=3.6.2->starlette<0.51.0,>=0.40.0->fastapi<1.0.0,>=0.104.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1))
+  Using cached idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+Collecting filelock (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached filelock-3.20.0-py3-none-any.whl.metadata (2.1 kB)
+Collecting huggingface-hub>=0.15.1 (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached huggingface_hub-0.36.0-py3-none-any.whl.metadata (14 kB)
+Collecting pyyaml>=5.1 (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached pyyaml-6.0.3-cp313-cp313-macosx_11_0_arm64.whl.metadata (2.4 kB)
+Collecting regex!=2019.12.17 (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached regex-2025.11.3-cp313-cp313-macosx_11_0_arm64.whl.metadata (40 kB)
+Collecting requests (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+Collecting tokenizers<=0.23.0,>=0.22.0 (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached tokenizers-0.22.1-cp39-abi3-macosx_11_0_arm64.whl.metadata (6.8 kB)
+Collecting safetensors>=0.4.3 (from transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached safetensors-0.7.0-cp38-abi3-macosx_11_0_arm64.whl.metadata (4.1 kB)
+Collecting fsspec>=2023.5.0 (from huggingface-hub>=0.15.1->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached fsspec-2025.12.0-py3-none-any.whl.metadata (10 kB)
+Collecting hf-xet<2.0.0,>=1.1.3 (from huggingface-hub>=0.15.1->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached hf_xet-1.2.0-cp37-abi3-macosx_11_0_arm64.whl.metadata (4.9 kB)
+Collecting httptools>=0.6.3 (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
+  Using cached httptools-0.7.1-cp313-cp313-macosx_11_0_arm64.whl.metadata (3.5 kB)
+Collecting python-dotenv>=0.13 (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
+  Using cached python_dotenv-1.2.1-py3-none-any.whl.metadata (25 kB)
+Collecting uvloop>=0.15.1 (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
+  Using cached uvloop-0.22.1-cp313-cp313-macosx_10_13_universal2.whl.metadata (4.9 kB)
+Collecting watchfiles>=0.13 (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
+  Using cached watchfiles-1.1.1-cp313-cp313-macosx_11_0_arm64.whl.metadata (4.9 kB)
+Collecting websockets>=10.4 (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
+  Using cached websockets-15.0.1-cp313-cp313-macosx_11_0_arm64.whl.metadata (6.8 kB)
+Collecting setuptools (from torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached setuptools-80.9.0-py3-none-any.whl.metadata (6.6 kB)
+Collecting sympy>=1.13.3 (from torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached sympy-1.14.0-py3-none-any.whl.metadata (12 kB)
+Collecting networkx>=2.5.1 (from torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached networkx-3.6.1-py3-none-any.whl.metadata (6.8 kB)
+Collecting jinja2 (from torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+Collecting mpmath<1.4,>=1.1.0 (from sympy>=1.13.3->torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached mpmath-1.3.0-py3-none-any.whl.metadata (8.6 kB)
+Collecting MarkupSafe>=2.0 (from jinja2->torch>=1.11.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached markupsafe-3.0.3-cp313-cp313-macosx_11_0_arm64.whl.metadata (2.7 kB)
+Collecting charset_normalizer<4,>=2 (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached charset_normalizer-3.4.4-cp313-cp313-macosx_10_13_universal2.whl.metadata (37 kB)
+Collecting urllib3<3,>=1.21.1 (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Downloading urllib3-2.6.2-py3-none-any.whl.metadata (6.6 kB)
+Collecting certifi>=2017.4.17 (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
+Collecting joblib>=1.3.0 (from scikit-learn->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached joblib-1.5.2-py3-none-any.whl.metadata (5.6 kB)
+Collecting threadpoolctl>=3.2.0 (from scikit-learn->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
+  Using cached threadpoolctl-3.6.0-py3-none-any.whl.metadata (13 kB)
+Downloading fastapi-0.124.2-py3-none-any.whl (112 kB)
+Using cached uvicorn-0.38.0-py3-none-any.whl (68 kB)
+Using cached sentence_transformers-2.7.0-py3-none-any.whl (171 kB)
+Using cached faiss_cpu-1.13.1-cp310-abi3-macosx_14_0_arm64.whl (3.4 MB)
+Using cached pydantic-2.12.5-py3-none-any.whl (463 kB)
+Using cached pydantic_core-2.41.5-cp313-cp313-macosx_11_0_arm64.whl (1.9 MB)
+Using cached python_multipart-0.0.20-py3-none-any.whl (24 kB)
+Using cached starlette-0.50.0-py3-none-any.whl (74 kB)
+Using cached anyio-4.12.0-py3-none-any.whl (113 kB)
+Using cached transformers-4.57.3-py3-none-any.whl (12.0 MB)
+Using cached huggingface_hub-0.36.0-py3-none-any.whl (566 kB)
+Using cached hf_xet-1.2.0-cp37-abi3-macosx_11_0_arm64.whl (2.7 MB)
+Using cached tokenizers-0.22.1-cp39-abi3-macosx_11_0_arm64.whl (2.9 MB)
+Using cached annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Using cached click-8.3.1-py3-none-any.whl (108 kB)
+Using cached fsspec-2025.12.0-py3-none-any.whl (201 kB)
+Using cached h11-0.16.0-py3-none-any.whl (37 kB)
+Using cached httptools-0.7.1-cp313-cp313-macosx_11_0_arm64.whl (108 kB)
+Using cached idna-3.11-py3-none-any.whl (71 kB)
+Using cached packaging-25.0-py3-none-any.whl (66 kB)
+Using cached python_dotenv-1.2.1-py3-none-any.whl (21 kB)
+Using cached pyyaml-6.0.3-cp313-cp313-macosx_11_0_arm64.whl (173 kB)
+Using cached regex-2025.11.3-cp313-cp313-macosx_11_0_arm64.whl (288 kB)
+Using cached safetensors-0.7.0-cp38-abi3-macosx_11_0_arm64.whl (447 kB)
+Using cached torch-2.9.1-cp313-none-macosx_11_0_arm64.whl (74.5 MB)
+Using cached networkx-3.6.1-py3-none-any.whl (2.1 MB)
+Using cached sympy-1.14.0-py3-none-any.whl (6.3 MB)
+Using cached mpmath-1.3.0-py3-none-any.whl (536 kB)
+Using cached tqdm-4.67.1-py3-none-any.whl (78 kB)
+Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+Using cached typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Using cached uvloop-0.22.1-cp313-cp313-macosx_10_13_universal2.whl (1.4 MB)
+Using cached watchfiles-1.1.1-cp313-cp313-macosx_11_0_arm64.whl (391 kB)
+Using cached websockets-15.0.1-cp313-cp313-macosx_11_0_arm64.whl (173 kB)
+Using cached filelock-3.20.0-py3-none-any.whl (16 kB)
+Using cached jinja2-3.1.6-py3-none-any.whl (134 kB)
+Using cached markupsafe-3.0.3-cp313-cp313-macosx_11_0_arm64.whl (12 kB)
+Using cached pillow-12.0.0-cp313-cp313-macosx_11_0_arm64.whl (4.7 MB)
+Using cached requests-2.32.5-py3-none-any.whl (64 kB)
+Using cached charset_normalizer-3.4.4-cp313-cp313-macosx_10_13_universal2.whl (208 kB)
+Downloading urllib3-2.6.2-py3-none-any.whl (131 kB)
+Using cached certifi-2025.11.12-py3-none-any.whl (159 kB)
+Downloading scikit_learn-1.8.0-cp313-cp313-macosx_12_0_arm64.whl (8.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 8.0/8.0 MB 1.9 MB/s  0:00:04
+Using cached joblib-1.5.2-py3-none-any.whl (308 kB)
+Using cached scipy-1.16.3-cp313-cp313-macosx_14_0_arm64.whl (20.9 MB)
+Using cached threadpoolctl-3.6.0-py3-none-any.whl (18 kB)
+Using cached setuptools-80.9.0-py3-none-any.whl (1.2 MB)
+Installing collected packages: mpmath, websockets, uvloop, urllib3, typing-extensions, tqdm, threadpoolctl, sympy, setuptools, safetensors, regex, pyyaml, python-multipart, python-dotenv, Pillow, packaging, numpy, networkx, MarkupSafe, joblib, idna, httptools, hf-xet, h11, fsspec, filelock, click, charset_normalizer, certifi, annotated-types, annotated-doc, uvicorn, typing-inspection, scipy, requests, pydantic-core, jinja2, faiss-cpu, anyio, watchfiles, torch, starlette, scikit-learn, pydantic, huggingface-hub, tokenizers, fastapi, transformers, sentence-transformers
+
+Successfully installed MarkupSafe-3.0.3 Pillow-12.0.0 annotated-doc-0.0.4 annotated-types-0.7.0 anyio-4.12.0 certifi-2025.11.12 charset_normalizer-3.4.4 click-8.3.1 faiss-cpu-1.13.1 fastapi-0.124.2 filelock-3.20.0 fsspec-2025.12.0 h11-0.16.0 hf-xet-1.2.0 httptools-0.7.1 huggingface-hub-0.36.0 idna-3.11 jinja2-3.1.6 joblib-1.5.2 mpmath-1.3.0 networkx-3.6.1 numpy-1.26.4 packaging-25.0 pydantic-2.12.5 pydantic-core-2.41.5 python-dotenv-1.2.1 python-multipart-0.0.20 pyyaml-6.0.3 regex-2025.11.3 requests-2.32.5 safetensors-0.7.0 scikit-learn-1.8.0 scipy-1.16.3 sentence-transformers-2.7.0 setuptools-80.9.0 starlette-0.50.0 sympy-1.14.0 threadpoolctl-3.6.0 tokenizers-0.22.1 torch-2.9.1 tqdm-4.67.1 transformers-4.57.3 typing-extensions-4.15.0 typing-inspection-0.4.2 urllib3-2.6.2 uvicorn-0.38.0 uvloop-0.22.1 watchfiles-1.1.1 websockets-15.0.1
 All critical imports successful
 Testing model loading...
 Attempting to load sentence-transformers model: all-MiniLM-L6-v2
@@ -56,7 +168,32 @@ Attempting to load sentence-transformers model: all-MiniLM-L6-v2
 ✓ Created SentenceTransformer instance
 ✓ Model loaded successfully. Embedding dimension: 384
 Model is ready
-INFO:     Started server process [70122]
+🛠️  Creating Grimoire Xcode project...
+📱 Xcode version: 26.1.1
+📁 Creating project structure...
+✅ Created Info.plist
+✅ Created scheme file
+✅ Created project.pbxproj
+✅ Created workspace
+✅ Created build script
+✅ Created Xcode setup documentation
+
+🎉 Xcode project created successfully!
+
+📋 Next steps:
+1. Open the project:
+   open Grimoire.xcodeproj
+
+2. Or build from command line:
+   ./build_app.sh
+
+3. Add Swift files to the project (if not already added):
+   - Drag files/folders into Xcode project navigator
+   - Check 'Copy items if needed'
+   - Add to the Grimoire target
+
+📚 For detailed setup, see: XCODE_SETUP.md
+INFO:     Started server process [73296]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
@@ -64,28 +201,70 @@ Loaded metadata for 2 chunks
 Loading FAISS index from storage/faiss.index
 Index loaded with 2 vectors
 Loaded note tree from storage/note_tree.json
-INFO:     127.0.0.1:51927 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51928 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51929 - "GET /all-notes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51930 - "GET /note/welcome HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:51931 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52167 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52168 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52169 - "GET /all-notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52170 - "GET /note/welcome HTTP/1.1" 404 Not Found
+🔨 Building Grimoire macOS app...
+[0;34m🧹 Cleaning previous builds...[0m
+[0;34m🏗️  Building project...[0m
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00008132-000C09D01405801C, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00008132-000C09D01405801C, name:My Mac }
+/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.xcodeproj: warning: The Copy Bundle Resources build phase contains this target's Info.plist file '/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Resources/Info.plist'. (in target 'Grimoire' from project 'Grimoire')
+[0;32m✅ Build successful![0m
+[0;32m✅ App copied to: /Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.app[0m
+[0;34m📦 App size: 2.2M[0m
+
+[0;32m══════════════════════════════════════════════════════════════[0m
+[0;32m🎉 Build complete![0m
+[0;32m══════════════════════════════════════════════════════════════[0m
+
+[0;34mNext steps:[0m
+  1. [1;33mMake sure backend is running:[0m ../grimoire backend
+  2. [1;33mLaunch the app:[0m open Grimoire.app
+  3. [1;33mOr run full setup:[0m ../grimoire
+
+[0;34mBackend URL:[0m http://127.0.0.1:8000
+[0;34mAPI Docs:[0m http://127.0.0.1:8000/docs
+INFO:     127.0.0.1:52171 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52171 - "GET /note/note_1764904186_6081 HTTP/1.1" 200 OK
 Attempting to load sentence-transformers model: all-MiniLM-L6-v2
 ✓ Imported SentenceTransformer
 ✓ Created SentenceTransformer instance
 ✓ Model loaded successfully. Embedding dimension: 384
-INFO:     127.0.0.1:51931 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51934 - "GET /note/note_1764904207_5040 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51934 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51934 - "GET /note/note_1764904186_6081 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51934 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51942 - "POST /search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52171 - "POST /search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52174 - "POST /search HTTP/1.1" 200 OK
 Rebuilt index with 1 embeddings
 Saved note tree to storage/note_tree.json
 Updated note: note_1764904186_6081
-INFO:     127.0.0.1:51942 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52174 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52174 - "POST /search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52174 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 1 embeddings
+Saved note tree to storage/note_tree.json
+Updated note: note_1764904186_6081
+INFO:     127.0.0.1:52174 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52174 - "GET /note/note_1764904207_5040 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52174 - "POST /search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52175 - "POST /search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52176 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 1 embeddings
+Saved note tree to storage/note_tree.json
+Updated note: note_1764904207_5040
+INFO:     127.0.0.1:52176 - "POST /update-note HTTP/1.1" 200 OK
+Saved note tree to storage/note_tree.json
+Updated note: note_1765496292_7963
+INFO:     127.0.0.1:52176 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52176 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52176 - "GET /note/note_1765496292_7963 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52176 - "POST /search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52177 - "GET /note/note_1764904186_6081 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52177 - "GET /note/note_1764904207_5040 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52177 - "POST /search HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [70122]
-/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/loky-70122-as_8m84f'}
+INFO:     Finished server process [73296]
+/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/loky-73296-75_73eaf'}
   warnings.warn(

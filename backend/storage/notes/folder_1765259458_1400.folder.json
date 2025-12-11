@@ -3,9 +3,11 @@
   "title": "folder 1765259458 1400",
   "path": "folder_1765259458_1400",
   "parent_id": null,
-  "children": [],
+  "children": [
+    "note_1765496292_7963"
+  ],
   "created_at": 1765259458.117506,
-  "updated_at": 1765259458.117507,
+  "updated_at": 1765496292.932148,
   "type": "folder",
   "content": ""
 }
