@@ -200,14 +200,55 @@ final class NoteStore: ObservableObject {
         guard !newName.isEmpty else { return }
 
         do {
-            try await repository.rename(noteId: noteId, newId: newName)
+            let targetId = computeRenamedId(oldId: noteId, newName: newName)
+            try await repository.rename(noteId: noteId, newId: targetId)
             await refreshTree()
-            if selection == noteId {
-                select(newName)
-            }
+            updateSelectionAfterIdChange(oldId: noteId, newId: targetId)
         } catch {
             if isCancellation(error) { return }
             lastError = error.localizedDescription
+        }
+    }
+
+    func move(noteId: String, toParentId parentId: String?) async {
+        if isFolder(id: noteId) {
+            let leaf = noteId.split(separator: "/").last.map(String.init) ?? noteId
+            let normalizedLeaf = leaf.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            let normalizedParent = parentId?.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+            if let normalizedParent, !normalizedParent.isEmpty {
+                if normalizedParent == noteId || isDescendant(normalizedParent, of: noteId) {
+                    return
+                }
+            }
+
+            let targetId: String
+            if let normalizedParent, !normalizedParent.isEmpty {
+                targetId = "\(normalizedParent)/\(normalizedLeaf)"
+            } else {
+                // Force a full-path rename to root by including a leading slash.
+                targetId = "/\(normalizedLeaf)"
+            }
+
+            do {
+                try await repository.rename(noteId: noteId, newId: targetId)
+                await refreshTree()
+                updateSelectionAfterIdChange(
+                    oldId: noteId,
+                    newId: targetId.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                )
+            } catch {
+                if isCancellation(error) { return }
+                lastError = error.localizedDescription
+            }
+        } else {
+            do {
+                try await repository.moveItem(noteId: noteId, parentId: parentId)
+                await refreshTree()
+            } catch {
+                if isCancellation(error) { return }
+                lastError = error.localizedDescription
+            }
         }
     }
 
@@ -283,5 +324,34 @@ private extension NoteStore {
         let message = error.localizedDescription.lowercased()
         if message.contains("cancelled") || message.contains("canceled") { return true }
         return false
+    }
+
+    func computeRenamedId(oldId: String, newName: String) -> String {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalized.contains("/") {
+            return normalized
+        }
+        if let parent = parentId(for: oldId) {
+            return "\(parent)/\(normalized)"
+        }
+        return normalized
+    }
+
+    func updateSelectionAfterIdChange(oldId: String, newId: String) {
+        if selection == oldId {
+            select(newId)
+            return
+        }
+        if let currentSelection = selection, currentSelection.hasPrefix(oldId + "/") {
+            let suffix = currentSelection.dropFirst(oldId.count)
+            let updated = newId + suffix
+            select(String(updated))
+        }
+    }
+
+    func isDescendant(_ candidateId: String, of ancestorId: String) -> Bool {
+        if candidateId == ancestorId { return true }
+        return candidateId.hasPrefix(ancestorId + "/")
     }
 }

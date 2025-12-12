@@ -1,0 +1,13 @@
+{
+  "id": "folder x/folder y/folder_1765514201_9047",
+  "title": "folder 1765514201 9047",
+  "path": "folder x/folder y/folder_1765514201_9047",
+  "parent_id": "folder x/folder y",
+  "children": [
+    "note_1765514212_6486"
+  ],
+  "created_at": 1765514201.7179468,
+  "updated_at": 1765514865.9342132,
+  "type": "folder",
+  "content": ""
+}

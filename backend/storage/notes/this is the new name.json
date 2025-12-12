@@ -1,0 +1,11 @@
+{
+  "id": "this is the new name",
+  "title": "this is the new name",
+  "path": "this is the new name",
+  "parent_id": "folder x/folder y",
+  "children": [],
+  "created_at": 1765514157.939795,
+  "updated_at": 1765514865.934203,
+  "type": "note",
+  "content": "# New Note\n\nStart writing here..."
+}

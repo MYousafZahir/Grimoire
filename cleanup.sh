@@ -46,13 +46,6 @@ else
     echo -e "  ${BLUE}No virtual environment found${NC}"
 fi
 
-# Remove PID file
-if [ -f "backend.pid" ]; then
-    echo -e "  ${RED}Removing${NC} backend PID file..."
-    rm -f backend.pid
-    echo -e "  ${GREEN}✓ PID file removed${NC}"
-fi
-
 # Remove build artifacts
 if [ -d "macos-app/Build" ]; then
     echo -e "  ${RED}Removing${NC} build artifacts..."
@@ -82,9 +75,24 @@ echo -e "  ${RED}Clearing${NC} log files..."
 echo -e "  ${GREEN}✓ Log files cleared${NC}"
 
 # Check for running backend and stop it
-if pgrep -f "python3.*main.py" > /dev/null; then
+if [ -f "backend.pid" ]; then
+    BACKEND_PID=$(cat backend.pid 2>/dev/null || true)
+    if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+        echo -e "  ${YELLOW}Stopping${NC} backend server (PID: $BACKEND_PID)..."
+        kill "$BACKEND_PID" 2>/dev/null || true
+        sleep 1
+        kill -9 "$BACKEND_PID" 2>/dev/null || true
+        echo -e "  ${GREEN}✓ Backend server stopped${NC}"
+    fi
+    rm -f backend.pid
+    echo -e "  ${GREEN}✓ PID file removed${NC}"
+fi
+
+# Fallback to stop any uvicorn/main processes that may not match PID file
+if pgrep -f "uvicorn .*main:app" > /dev/null 2>&1 || pgrep -f "python3.*main.py" > /dev/null 2>&1; then
     echo -e "  ${YELLOW}Stopping${NC} running backend server..."
-    pkill -f "python3.*main.py"
+    pkill -f "uvicorn .*main:app" 2>/dev/null || true
+    pkill -f "python3.*main.py" 2>/dev/null || true
     echo -e "  ${GREEN}✓ Backend server stopped${NC}"
 fi
 

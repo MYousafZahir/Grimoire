@@ -29,6 +29,10 @@ class NoteStorage:
         # Build parent/child relationships
         root_ids: Set[str] = set(nodes.keys())
 
+        # Start from a clean slate; stored children can be stale or inconsistent.
+        for node in nodes.values():
+            node.children = []
+
         for record in records.values():
             parent_id = record.parent_id
             if parent_id and parent_id in nodes:
@@ -39,6 +43,16 @@ class NoteStorage:
             # Fall back to stored children to recover older data
             for child in record.children:
                 if child in nodes:
+                    child_record = records[child]
+                    child_parent = child_record.parent_id
+                    if child_parent is not None:
+                        if child_parent != record.id:
+                            continue
+                    else:
+                        # Folders with no parent_id are roots (derived from id);
+                        # don't reattach them via stale children lists.
+                        if child_record.kind == NoteKind.FOLDER:
+                            continue
                     if child not in nodes[record.id].children:
                         nodes[record.id].children.append(child)
                     root_ids.discard(child)
@@ -50,9 +64,12 @@ class NoteStorage:
                 key=lambda cid: nodes.get(cid).title if cid in nodes else cid,
             )
 
-        roots = [nodes[rid] for rid in root_ids]
-        roots.sort(key=lambda n: n.title.lower())
-        return NotesResponsePayload(notes=roots)
+        # Return a flat list of all nodes. Clients (e.g., the macOS app)
+        # reconstruct hierarchy from the children ids. Returning only roots
+        # causes child items to be missing from client-side trees.
+        all_nodes = list(nodes.values())
+        all_nodes.sort(key=lambda n: n.title.lower())
+        return NotesResponsePayload(notes=all_nodes)
 
     def list_records(self) -> Dict[str, NoteRecord]:
         """Expose all records for services that need to rebuild derived state."""
@@ -108,6 +125,8 @@ class NoteStorage:
             children=list(existing.children if existing else []),
         )
 
+        # Ensure folder location is derived from its path-style id.
+        folder.parent_id = self._derive_parent_id(normalized)
         if is_new:
             folder.created_at = time.time()
         folder.updated_at = time.time()
@@ -180,9 +199,13 @@ class NoteStorage:
             new_id = rebase(record.id) if record.id in targets else record.id
             new_parent = rebase(record.parent_id)
             new_children = [rebase(child) or child for child in record.children]
+            new_title = record.title
+            if record.id == normalized_old:
+                new_title = self._title_from_id(normalized_new_root)
             updated = replace(
                 record,
                 id=new_id,
+                title=new_title,
                 parent_id=new_parent,
                 children=new_children,
                 updated_at=time.time(),
@@ -201,6 +224,51 @@ class NoteStorage:
 
         self._persist_all(updated_records)
         return normalized_new_root
+
+    def move_item(self, note_id: str, parent_id: Optional[str]) -> NoteRecord:
+        """Move an existing note or folder by updating parent_id.
+
+        This keeps the item's id stable, unlike rename_item which rebases ids.
+        """
+        normalized_id = self._normalize_id(note_id)
+        normalized_parent = self._normalize_id(parent_id) if parent_id else None
+
+        records = self._load_all_records()
+        if normalized_id not in records:
+            raise FileNotFoundError(f"Note or folder not found: {note_id}")
+
+        record = records[normalized_id]
+        old_parent_id = record.parent_id
+
+        # Remove from old parent
+        if old_parent_id and old_parent_id in records:
+            old_parent = records[old_parent_id]
+            if record.id in old_parent.children:
+                old_parent.children = [cid for cid in old_parent.children if cid != record.id]
+                old_parent.updated_at = time.time()
+                records[old_parent.id] = old_parent
+
+        # Add to new parent
+        if normalized_parent:
+            parent_record = records.get(normalized_parent)
+            if not parent_record:
+                parent_record = NoteRecord(
+                    id=normalized_parent,
+                    title=self._title_from_id(normalized_parent),
+                    kind=NoteKind.FOLDER,
+                    parent_id=self._derive_parent_id(normalized_parent),
+                )
+            if record.id not in parent_record.children:
+                parent_record.children.append(record.id)
+            parent_record.updated_at = time.time()
+            records[parent_record.id] = parent_record
+
+        record.parent_id = normalized_parent
+        record.updated_at = time.time()
+        records[record.id] = record
+
+        self._persist_all(records)
+        return record
 
     # ------------------------------------------------------------------
     # Helpers
@@ -266,6 +334,11 @@ class NoteStorage:
         updated_at = raw.get("updated_at", time.time())
 
         content = raw.get("content", "") if kind == NoteKind.NOTE else ""
+
+        # Folders are represented with path-style ids; keep parent_id consistent
+        # with the id to avoid stale or mislinked hierarchies.
+        if kind == NoteKind.FOLDER:
+            parent_id = self._derive_parent_id(record_id)
 
         return NoteRecord(
             id=record_id,

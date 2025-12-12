@@ -79,6 +79,10 @@ private final class StubNoteRepository: NoteRepository {
         }
     }
 
+    func moveItem(noteId: String, parentId: String?) async throws {
+        // Stub does not track hierarchy for moves.
+    }
+
     func delete(noteId: String) async throws {
         savedNotes.removeValue(forKey: noteId)
     }

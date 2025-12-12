@@ -12,6 +12,7 @@ from models import (
     DeleteNoteRequest,
     NoteContentPayload,
     NotesResponsePayload,
+    MoveItemRequest,
     RenameNoteRequest,
     SearchRequest,
     SearchResponsePayload,
@@ -118,6 +119,17 @@ async def rename(request: RenameNoteRequest):
     try:
         new_id = note_service.rename_item(request.old_note_id, request.new_note_id)
         return {"success": True, "note_id": new_id}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Note not found")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/move-item", tags=["notes"])
+async def move_item(request: MoveItemRequest):
+    try:
+        record = note_service.move_item(request.note_id, request.parent_id)
+        return {"success": True, "note_id": record.id, "parent_id": record.parent_id}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")
     except Exception as exc:

@@ -7,6 +7,7 @@ protocol NoteRepository {
     func saveContent(noteId: String, content: String, parentId: String?) async throws
     func createFolder(path: String) async throws -> NoteNode
     func rename(noteId: String, newId: String) async throws
+    func moveItem(noteId: String, parentId: String?) async throws
     func delete(noteId: String) async throws
 }
 
@@ -136,6 +137,19 @@ struct HTTPNoteRepository: NoteRepository {
         _ = try await perform(request: request)
     }
 
+    func moveItem(noteId: String, parentId: String?) async throws {
+        guard let url = URL(string: "move-item", relativeTo: baseURL) else {
+            throw NoteRepositoryError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(MoveItemRequest(noteId: noteId, parentId: parentId))
+
+        _ = try await perform(request: request)
+    }
+
     func delete(noteId: String) async throws {
         guard let url = URL(string: "delete-note", relativeTo: baseURL) else {
             throw NoteRepositoryError.invalidURL
@@ -157,6 +171,7 @@ private extension HTTPNoteRepository {
         let id: String
         let title: String
         let type: String?
+        let kind: String?
         let children: [String]
     }
 
@@ -210,6 +225,7 @@ private extension HTTPNoteRepository {
         let id: String
         let title: String
         let type: String?
+        let kind: String?
         let children: [String]
     }
 
@@ -220,6 +236,16 @@ private extension HTTPNoteRepository {
         enum CodingKeys: String, CodingKey {
             case oldNoteId = "old_note_id"
             case newNoteId = "new_note_id"
+        }
+    }
+
+    struct MoveItemRequest: Codable {
+        let noteId: String
+        let parentId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case noteId = "note_id"
+            case parentId = "parent_id"
         }
     }
 
@@ -243,39 +269,47 @@ private extension HTTPNoteRepository {
     }
 
     func buildTree(from backendNotes: [BackendNoteInfo]) -> [NoteNode] {
-        var nodeMap: [String: NoteNode] = [:]
+        struct BaseNode {
+            let id: String
+            let title: String
+            let kind: NoteKind
+        }
+
+        var baseMap: [String: BaseNode] = [:]
+        var childrenMap: [String: [String]] = [:]
 
         for note in backendNotes {
-            let kind: NoteKind = (note.type ?? (note.children.isEmpty ? "note" : "folder")) == "folder"
-                ? .folder : .note
-            nodeMap[note.id] = NoteNode(
-                id: note.id,
-                title: note.title,
-                path: note.id,
-                kind: kind,
-                children: []
+            let rawKind = note.type ?? note.kind ?? (note.children.isEmpty ? "note" : "folder")
+            let kind: NoteKind = rawKind == "folder" ? .folder : .note
+            baseMap[note.id] = BaseNode(id: note.id, title: note.title, kind: kind)
+            childrenMap[note.id] = note.children
+        }
+
+        var rootIds = Set(baseMap.keys)
+        for childIds in childrenMap.values {
+            for childId in childIds {
+                rootIds.remove(childId)
+            }
+        }
+
+        func makeNode(_ id: String, visiting: Set<String>) -> NoteNode? {
+            guard let base = baseMap[id] else { return nil }
+            if visiting.contains(id) {
+                return NoteNode(id: base.id, title: base.title, path: base.id, kind: base.kind, children: [])
+            }
+            var nextVisiting = visiting
+            nextVisiting.insert(id)
+            let childNodes = (childrenMap[id] ?? []).compactMap { makeNode($0, visiting: nextVisiting) }
+            return NoteNode(
+                id: base.id,
+                title: base.title,
+                path: base.id,
+                kind: base.kind,
+                children: childNodes
             )
         }
 
-        var rootIds = Set(nodeMap.keys)
-
-        for note in backendNotes {
-            var children: [NoteNode] = []
-
-            for childId in note.children {
-                if let child = nodeMap[childId] {
-                    children.append(child)
-                    rootIds.remove(childId)
-                }
-            }
-
-            if var parent = nodeMap[note.id] {
-                parent.children = children
-                nodeMap[note.id] = parent
-            }
-        }
-
-        let roots = rootIds.compactMap { nodeMap[$0] }
+        let roots = rootIds.compactMap { makeNode($0, visiting: []) }
         return roots.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 }

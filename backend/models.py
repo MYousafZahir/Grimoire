@@ -120,3 +120,10 @@ class DeleteNoteRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     note_id: str = Field(alias="note_id")
+
+
+class MoveItemRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    note_id: str = Field(alias="note_id")
+    parent_id: Optional[str] = Field(default=None, alias="parent_id")

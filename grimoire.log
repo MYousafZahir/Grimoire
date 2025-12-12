@@ -1,4 +1,4 @@
-[2025-12-11 16:36:25] Starting Grimoire launcher
+[2025-12-11 21:45:55] Starting Grimoire launcher
 Requirement already satisfied: pip in ./backend/venv/lib/python3.13/site-packages (25.1.1)
 Collecting pip
   Using cached pip-25.3-py3-none-any.whl.metadata (4.7 kB)
@@ -10,7 +10,7 @@ Installing collected packages: pip
       Successfully uninstalled pip-25.1.1
 Successfully installed pip-25.3
 Collecting fastapi<1.0.0,>=0.104.0 (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1))
-  Downloading fastapi-0.124.2-py3-none-any.whl.metadata (30 kB)
+  Using cached fastapi-0.124.2-py3-none-any.whl.metadata (30 kB)
 Collecting uvicorn<1.0.0,>=0.24.0 (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2))
   Using cached uvicorn-0.38.0-py3-none-any.whl.metadata (6.8 kB)
 Collecting sentence-transformers<3.0.0,>=2.2.2 (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
@@ -40,11 +40,11 @@ Collecting tqdm (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir
 Collecting torch>=1.11.0 (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
   Using cached torch-2.9.1-cp313-none-macosx_11_0_arm64.whl.metadata (30 kB)
 Collecting scikit-learn (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
-  Downloading scikit_learn-1.8.0-cp313-cp313-macosx_12_0_arm64.whl.metadata (11 kB)
+  Using cached scikit_learn-1.8.0-cp313-cp313-macosx_12_0_arm64.whl.metadata (11 kB)
 Collecting scipy (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
   Using cached scipy-1.16.3-cp313-cp313-macosx_14_0_arm64.whl.metadata (62 kB)
 Collecting huggingface-hub>=0.15.1 (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
-  Downloading huggingface_hub-1.2.2-py3-none-any.whl.metadata (13 kB)
+  Using cached huggingface_hub-1.2.2-py3-none-any.whl.metadata (13 kB)
 Collecting Pillow (from sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
   Using cached pillow-12.0.0-cp313-cp313-macosx_11_0_arm64.whl.metadata (8.8 kB)
 Collecting packaging (from faiss-cpu<2.0.0,>=1.13.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 4))
@@ -102,14 +102,14 @@ Collecting MarkupSafe>=2.0 (from jinja2->torch>=1.11.0->sentence-transformers<3.
 Collecting charset_normalizer<4,>=2 (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
   Using cached charset_normalizer-3.4.4-cp313-cp313-macosx_10_13_universal2.whl.metadata (37 kB)
 Collecting urllib3<3,>=1.21.1 (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
-  Downloading urllib3-2.6.2-py3-none-any.whl.metadata (6.6 kB)
+  Using cached urllib3-2.6.2-py3-none-any.whl.metadata (6.6 kB)
 Collecting certifi>=2017.4.17 (from requests->transformers<5.0.0,>=4.34.0->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
   Using cached certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
 Collecting joblib>=1.3.0 (from scikit-learn->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
   Using cached joblib-1.5.2-py3-none-any.whl.metadata (5.6 kB)
 Collecting threadpoolctl>=3.2.0 (from scikit-learn->sentence-transformers<3.0.0,>=2.2.2->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 3))
   Using cached threadpoolctl-3.6.0-py3-none-any.whl.metadata (13 kB)
-Downloading fastapi-0.124.2-py3-none-any.whl (112 kB)
+Using cached fastapi-0.124.2-py3-none-any.whl (112 kB)
 Using cached uvicorn-0.38.0-py3-none-any.whl (68 kB)
 Using cached sentence_transformers-2.7.0-py3-none-any.whl (171 kB)
 Using cached faiss_cpu-1.13.1-cp310-abi3-macosx_14_0_arm64.whl (3.4 MB)
@@ -150,10 +150,9 @@ Using cached markupsafe-3.0.3-cp313-cp313-macosx_11_0_arm64.whl (12 kB)
 Using cached pillow-12.0.0-cp313-cp313-macosx_11_0_arm64.whl (4.7 MB)
 Using cached requests-2.32.5-py3-none-any.whl (64 kB)
 Using cached charset_normalizer-3.4.4-cp313-cp313-macosx_10_13_universal2.whl (208 kB)
-Downloading urllib3-2.6.2-py3-none-any.whl (131 kB)
+Using cached urllib3-2.6.2-py3-none-any.whl (131 kB)
 Using cached certifi-2025.11.12-py3-none-any.whl (159 kB)
-Downloading scikit_learn-1.8.0-cp313-cp313-macosx_12_0_arm64.whl (8.0 MB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 8.0/8.0 MB 1.9 MB/s  0:00:04
+Using cached scikit_learn-1.8.0-cp313-cp313-macosx_12_0_arm64.whl (8.0 MB)
 Using cached joblib-1.5.2-py3-none-any.whl (308 kB)
 Using cached scipy-1.16.3-cp313-cp313-macosx_14_0_arm64.whl (20.9 MB)
 Using cached threadpoolctl-3.6.0-py3-none-any.whl (18 kB)
@@ -193,18 +192,18 @@ Model is ready
    - Add to the Grimoire target
 
 📚 For detailed setup, see: XCODE_SETUP.md
-INFO:     Started server process [73296]
+INFO:     Started server process [8360]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-Loaded metadata for 2 chunks
+Loaded metadata for 3 chunks
 Loading FAISS index from storage/faiss.index
-Index loaded with 2 vectors
+Index loaded with 3 vectors
 Loaded note tree from storage/note_tree.json
-INFO:     127.0.0.1:52167 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52168 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52169 - "GET /all-notes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52170 - "GET /note/welcome HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53677 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53678 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53679 - "GET /all-notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53680 - "GET /note/welcome HTTP/1.1" 404 Not Found
 🔨 Building Grimoire macOS app...
 [0;34m🧹 Cleaning previous builds...[0m
 [0;34m🏗️  Building project...[0m
@@ -214,7 +213,7 @@ INFO:     127.0.0.1:52170 - "GET /note/welcome HTTP/1.1" 404 Not Found
 /Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.xcodeproj: warning: The Copy Bundle Resources build phase contains this target's Info.plist file '/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Resources/Info.plist'. (in target 'Grimoire' from project 'Grimoire')
 [0;32m✅ Build successful![0m
 [0;32m✅ App copied to: /Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.app[0m
-[0;34m📦 App size: 2.2M[0m
+[0;34m📦 App size: 2.3M[0m
 
 [0;32m══════════════════════════════════════════════════════════════[0m
 [0;32m🎉 Build complete![0m
@@ -227,44 +226,34 @@ INFO:     127.0.0.1:52170 - "GET /note/welcome HTTP/1.1" 404 Not Found
 
 [0;34mBackend URL:[0m http://127.0.0.1:8000
 [0;34mAPI Docs:[0m http://127.0.0.1:8000/docs
-INFO:     127.0.0.1:52171 - "GET /notes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52171 - "GET /note/note_1764904186_6081 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53681 - "GET /notes HTTP/1.1" 200 OK
 Attempting to load sentence-transformers model: all-MiniLM-L6-v2
 ✓ Imported SentenceTransformer
 ✓ Created SentenceTransformer instance
 ✓ Model loaded successfully. Embedding dimension: 384
-INFO:     127.0.0.1:52171 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52174 - "POST /search HTTP/1.1" 200 OK
-Rebuilt index with 1 embeddings
 Saved note tree to storage/note_tree.json
-Updated note: note_1764904186_6081
-INFO:     127.0.0.1:52174 - "POST /update-note HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52174 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52174 - "POST /search HTTP/1.1" 200 OK
-Rebuilt index with 1 embeddings
+Updated note: note_1765514852_3304
+INFO:     127.0.0.1:53684 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53684 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53684 - "GET /note/note_1765514852_3304 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53684 - "POST /search HTTP/1.1" 200 OK
+Index cleared
+Creating new FAISS index with dimension 384
 Saved note tree to storage/note_tree.json
-Updated note: note_1764904186_6081
-INFO:     127.0.0.1:52174 - "POST /update-note HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52174 - "GET /note/note_1764904207_5040 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52174 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52175 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52176 - "POST /search HTTP/1.1" 200 OK
-Rebuilt index with 1 embeddings
+Updated note: note_1765514212_6486
 Saved note tree to storage/note_tree.json
-Updated note: note_1764904207_5040
-INFO:     127.0.0.1:52176 - "POST /update-note HTTP/1.1" 200 OK
+Updated note: test name 1
 Saved note tree to storage/note_tree.json
-Updated note: note_1765496292_7963
-INFO:     127.0.0.1:52176 - "POST /update-note HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52176 - "GET /notes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52176 - "GET /note/note_1765496292_7963 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52176 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52177 - "GET /note/note_1764904186_6081 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52177 - "GET /note/note_1764904207_5040 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52177 - "POST /search HTTP/1.1" 200 OK
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [73296]
-/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/loky-73296-75_73eaf'}
-  warnings.warn(
+Updated note: note_1765514723_6517
+Saved note tree to storage/note_tree.json
+Updated note: this is the new name
+INFO:     127.0.0.1:53687 - "POST /rename-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53687 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53687 - "GET /note/test%20name%201 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53689 - "POST /move-item HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53689 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53690 - "GET /note/note_1765514723_6517 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53691 - "GET /note/this%20is%20the%20new%20name HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53691 - "POST /search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53691 - "GET /note/note_1765514723_6517 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53691 - "GET /note/test%20name%201 HTTP/1.1" 200 OK

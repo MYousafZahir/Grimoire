@@ -175,6 +175,11 @@ class NoteService:
         self.search.rebuild(records.values())
         return new_root
 
+    def move_item(self, note_id: str, parent_id: str | None) -> NoteRecord:
+        record = self.storage.move_item(note_id, parent_id)
+        # Id is stable; no need to rebuild semantic index.
+        return record
+
     def rebuild_index(self) -> int:
         records = self.storage.list_records()
         return self.search.rebuild(records.values())

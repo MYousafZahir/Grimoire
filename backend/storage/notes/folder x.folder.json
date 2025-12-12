@@ -1,0 +1,16 @@
+{
+  "id": "folder x",
+  "title": "folder x",
+  "path": "folder x",
+  "parent_id": null,
+  "children": [
+    "folder x/folder y",
+    "folder x/folder y/folder_1765514201_9047",
+    "note_1765514723_6517",
+    "test name 1"
+  ],
+  "created_at": 1765514176.093416,
+  "updated_at": 1765514874.925834,
+  "type": "folder",
+  "content": ""
+}
