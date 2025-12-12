@@ -52,10 +52,9 @@ If files are missing from the project:
 4. Add to the Grimoire target
 
 ### Swift Package Dependencies
-If you want Markdown preview:
-1. In Xcode: File → Add Packages...
-2. Enter: `https://github.com/gonzalezreal/swift-markdown-ui`
-3. Add to Grimoire target
+The project includes MarkdownUI for markdown rendering.
+If package resolution fails, in Xcode: File → Add Packages..., enter
+`https://github.com/gonzalezreal/swift-markdown-ui`, and add it to the Grimoire target.
 
 ## Backend Requirements
 

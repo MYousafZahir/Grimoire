@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownUI
 
 struct BacklinksView: View {
     @EnvironmentObject private var backlinksStore: BacklinksStore
@@ -152,9 +153,8 @@ struct BacklinkRow: View {
                     )
             }
 
-            Text(result.excerpt)
-                .font(.body)
-                .lineLimit(3)
+            Markdown(excerptMarkdown)
+                .markdownTheme(.docC)
                 .foregroundColor(.primary)
                 .padding(.leading, 20)
 
@@ -201,5 +201,29 @@ struct BacklinkRow: View {
         default:
             return .red
         }
+    }
+
+    private var excerptMarkdown: String {
+        var text = result.excerpt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return " " }
+
+        var didTruncate = false
+        let lines = text.components(separatedBy: .newlines)
+        if lines.count > 3 {
+            text = lines.prefix(3).joined(separator: "\n")
+            didTruncate = true
+        }
+
+        let maxChars = 500
+        if text.count > maxChars {
+            let idx = text.index(text.startIndex, offsetBy: maxChars)
+            text = String(text[..<idx])
+            didTruncate = true
+        }
+
+        if didTruncate {
+            text += "…"
+        }
+        return text
     }
 }

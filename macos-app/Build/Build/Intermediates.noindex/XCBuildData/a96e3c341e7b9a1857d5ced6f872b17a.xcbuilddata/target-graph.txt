@@ -1,2 +1,0 @@
-Target dependency graph (1 target)
-Target 'Grimoire' in project 'Grimoire' (no dependencies)

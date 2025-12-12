@@ -1,0 +1,102 @@
+# -------------------------------------------------------------------
+# Grimoire .gitignore
+# -------------------------------------------------------------------
+
+# macOS / Finder
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# General logs / temp files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# Editor/IDE
+.idea/
+.vscode/
+.cache/
+
+# Env / secrets
+.env
+.env.*
+
+# -------------------------------------------------------------------
+# Python backend
+# -------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+backend/venv/
+
+# Test / typecheck caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Runtime/state files
+backend.pid
+*.pid
+
+# Local notes, embeddings, FAISS index, and other generated storage.
+# Remove this block if you intend to version your notes.
+backend/storage/
+
+# -------------------------------------------------------------------
+# macOS app / Xcode / SwiftPM
+# -------------------------------------------------------------------
+
+# Xcode user-specific data
+**/xcuserdata/
+**/*.xcuserstate
+**/*.xccheckout
+**/*.xcscmblueprint
+**/xcshareddata/swiftpm/
+
+# Derived data / build output
+DerivedData/
+Build/
+macos-app/Build/
+macos-app/.build/
+
+# SwiftPM / Xcode source packages
+.swiftpm/
+**/SourcePackages/
+
+# Built app + debug symbols
+*.app
+*.dSYM
+
+# -------------------------------------------------------------------
+# Node / frontend tooling (if used)
+# -------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -------------------------------------------------------------------
+# Local rebuild cache
+# -------------------------------------------------------------------
+.rebuild-cache/

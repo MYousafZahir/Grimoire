@@ -1,4 +1,4 @@
-[2025-12-11 22:08:57] Starting Grimoire launcher
+[2025-12-11 23:04:39] Starting Grimoire launcher
 Requirement already satisfied: pip in ./backend/venv/lib/python3.13/site-packages (25.3)
 Requirement already satisfied: fastapi<1.0.0,>=0.104.0 in ./backend/venv/lib/python3.13/site-packages (from -r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 1)) (0.124.2)
 Requirement already satisfied: uvicorn<1.0.0,>=0.24.0 in ./backend/venv/lib/python3.13/site-packages (from uvicorn[standard]<1.0.0,>=0.24.0->-r /Users/yousafzahir/Documents/GitHub/Grimoire/backend/requirements.txt (line 2)) (0.38.0)
@@ -56,62 +56,160 @@ Attempting to load sentence-transformers model: all-MiniLM-L6-v2
 ✓ Created SentenceTransformer instance
 ✓ Model loaded successfully. Embedding dimension: 384
 Model is ready
-INFO:     127.0.0.1:53816 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53817 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53818 - "GET /all-notes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53819 - "GET /note/welcome HTTP/1.1" 404 Not Found
-🔨 Building Grimoire macOS app...
-[0;34m🧹 Cleaning previous builds...[0m
-[0;34m🏗️  Building project...[0m
---- xcodebuild: WARNING: Using the first of multiple matching destinations:
-{ platform:macOS, arch:arm64, id:00008132-000C09D01405801C, name:My Mac }
-{ platform:macOS, arch:x86_64, id:00008132-000C09D01405801C, name:My Mac }
-/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.xcodeproj: warning: The Copy Bundle Resources build phase contains this target's Info.plist file '/Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Resources/Info.plist'. (in target 'Grimoire' from project 'Grimoire')
-[0;32m✅ Build successful![0m
-[0;32m✅ App copied to: /Users/yousafzahir/Documents/GitHub/Grimoire/macos-app/Grimoire.app[0m
-[0;34m📦 App size: 2.4M[0m
-
-[0;32m══════════════════════════════════════════════════════════════[0m
-[0;32m🎉 Build complete![0m
-[0;32m══════════════════════════════════════════════════════════════[0m
-
-[0;34mNext steps:[0m
-  1. [1;33mMake sure backend is running:[0m ../grimoire backend
-  2. [1;33mLaunch the app:[0m open Grimoire.app
-  3. [1;33mOr run full setup:[0m ../grimoire
-
-[0;34mBackend URL:[0m http://127.0.0.1:8000
-[0;34mAPI Docs:[0m http://127.0.0.1:8000/docs
-INFO:     127.0.0.1:53820 - "GET /notes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53821 - "GET /note/The%20City%20of%20Ibnasi HTTP/1.1" 200 OK
+INFO:     Started server process [21040]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+Loaded metadata for 3 chunks
+Loading FAISS index from storage/faiss.index
+Index loaded with 3 vectors
+Loaded note tree from storage/note_tree.json
+INFO:     127.0.0.1:54160 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54161 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54162 - "GET /all-notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54163 - "GET /note/welcome HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54164 - "GET /notes HTTP/1.1" 200 OK
+Index cleared
 Attempting to load sentence-transformers model: all-MiniLM-L6-v2
 ✓ Imported SentenceTransformer
 ✓ Created SentenceTransformer instance
 ✓ Model loaded successfully. Embedding dimension: 384
-INFO:     127.0.0.1:53821 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53824 - "GET /note/pancake HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53826 - "GET /note/Sorcery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53826 - "POST /search HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53826 - "GET /note/The%20City%20of%20Ibnasi HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53826 - "POST /search HTTP/1.1" 200 OK
-Index cleared
 Creating new FAISS index with dimension 384
 Saved note tree to storage/note_tree.json
-Updated note: folder x/Test 1
+Updated note: Sorcery
 Saved note tree to storage/note_tree.json
-Updated note: pancake
+Updated note: test doc
+Saved note tree to storage/note_tree.json
+Updated note: placeholder
+INFO:     127.0.0.1:54166 - "POST /admin/rebuild-index HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54170 - "GET /note/Sorcery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54170 - "GET /note/placeholder HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54170 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 5 embeddings
+Saved note tree to storage/note_tree.json
+Updated note: placeholder
+INFO:     127.0.0.1:54170 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /note/test%20doc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /note/Sorcery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /note/test%20doc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /note/placeholder HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /note/test%20doc HTTP/1.1" 200 OK
+Rebuilt index with 5 embeddings
+Saved note tree to storage/note_tree.json
+Deleted note: placeholder
+INFO:     127.0.0.1:54174 - "POST /delete-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /notes HTTP/1.1" 200 OK
+Rebuilt index with 3 embeddings
+Saved note tree to storage/note_tree.json
+Deleted note: Sorcery
+INFO:     127.0.0.1:54174 - "POST /delete-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /notes HTTP/1.1" 200 OK
+Saved note tree to storage/note_tree.json
+Deleted note: test doc
+INFO:     127.0.0.1:54174 - "POST /delete-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /notes HTTP/1.1" 200 OK
+Creating new FAISS index with dimension 384
+Saved note tree to storage/note_tree.json
+Updated note: note_1765519646_4400
+INFO:     127.0.0.1:54179 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54179 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54179 - "GET /note/note_1765519646_4400 HTTP/1.1" 200 OK
+Index cleared
+Creating new FAISS index with dimension 384
 Saved note tree to storage/note_tree.json
 Updated note: The City of Ibnasi
-INFO:     127.0.0.1:53827 - "POST /rename-note HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53827 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54180 - "POST /rename-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54180 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54180 - "GET /note/The%20City%20of%20Ibnasi HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54182 - "POST /search HTTP/1.1" 200 OK
+Creating new FAISS index with dimension 384
+Saved note tree to storage/note_tree.json
+Updated note: The City of Ibnasi
+INFO:     127.0.0.1:54182 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54182 - "POST /search HTTP/1.1" 200 OK
+Creating new FAISS index with dimension 384
+Saved note tree to storage/note_tree.json
+Updated note: The City of Ibnasi
+INFO:     127.0.0.1:54182 - "POST /update-note HTTP/1.1" 200 OK
+Saved note tree to storage/note_tree.json
+Updated note: note_1765519681_4925
+INFO:     127.0.0.1:54185 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54185 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54185 - "GET /note/note_1765519681_4925 HTTP/1.1" 200 OK
 Index cleared
 Creating new FAISS index with dimension 384
 Saved note tree to storage/note_tree.json
-Updated note: folder x/Test 1
+Updated note: The Shattered Glass Sky
 Saved note tree to storage/note_tree.json
-Updated note: pancake
+Updated note: The City of Ibnasi
+INFO:     127.0.0.1:54187 - "POST /rename-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54187 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54187 - "GET /note/The%20Shattered%20Glass%20Sky HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54190 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 78 embeddings
 Saved note tree to storage/note_tree.json
-Updated note: Test 2
-INFO:     127.0.0.1:53827 - "POST /rename-note HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53827 - "GET /notes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53827 - "GET /note/Test%202 HTTP/1.1" 200 OK
+Updated note: The Shattered Glass Sky
+INFO:     127.0.0.1:54190 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54192 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 78 embeddings
+Saved note tree to storage/note_tree.json
+Updated note: The Shattered Glass Sky
+INFO:     127.0.0.1:54192 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54192 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 78 embeddings
+Saved note tree to storage/note_tree.json
+Updated note: The Shattered Glass Sky
+INFO:     127.0.0.1:54192 - "POST /update-note HTTP/1.1" 200 OK
+Saved note tree to storage/note_tree.json
+Updated note: note_1765519730_7277
+INFO:     127.0.0.1:54193 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54193 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54193 - "GET /note/note_1765519730_7277 HTTP/1.1" 200 OK
+Index cleared
+Creating new FAISS index with dimension 384
+Saved note tree to storage/note_tree.json
+Updated note: The Shattered Glass Sky
+Saved note tree to storage/note_tree.json
+Updated note: The Ratways
+Saved note tree to storage/note_tree.json
+Updated note: The City of Ibnasi
+INFO:     127.0.0.1:54193 - "POST /rename-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54193 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54193 - "GET /note/The%20Ratways HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54194 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 87 embeddings
+Saved note tree to storage/note_tree.json
+Updated note: The Ratways
+INFO:     127.0.0.1:54194 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54197 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 87 embeddings
+Saved note tree to storage/note_tree.json
+Updated note: The Ratways
+INFO:     127.0.0.1:54197 - "POST /update-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54201 - "POST /create-folder HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54201 - "GET /notes HTTP/1.1" 200 OK
+Index cleared
+Creating new FAISS index with dimension 384
+Saved note tree to storage/note_tree.json
+Updated note: The Shattered Glass Sky
+Saved note tree to storage/note_tree.json
+Updated note: The Ratways
+Saved note tree to storage/note_tree.json
+Updated note: The City of Ibnasi
+INFO:     127.0.0.1:54203 - "POST /rename-note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "GET /note/The%20City%20of%20Ibnasi HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "GET /note/The%20Shattered%20Glass%20Sky HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "POST /move-item HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "POST /move-item HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "POST /move-item HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "GET /notes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54203 - "GET /note/The%20City%20of%20Ibnasi HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54204 - "GET /note/The%20Shattered%20Glass%20Sky HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54204 - "POST /search HTTP/1.1" 200 OK
+Rebuilt index with 89 embeddings
+Saved note tree to storage/note_tree.json
+Updated note: The Shattered Glass Sky
+INFO:     127.0.0.1:54204 - "POST /update-note HTTP/1.1" 200 OK

@@ -74,12 +74,12 @@ class Chunker:
         return chunks
 
     def _clean_text(self, text: str) -> str:
-        """Clean and normalize text before chunking."""
-        # Remove excessive whitespace
-        text = re.sub(r"\s+", " ", text)
-        # Remove leading/trailing whitespace
-        text = text.strip()
-        return text
+        """Clean and normalize text before chunking.
+
+        Preserve newlines so markdown excerpts render correctly.
+        """
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        return text.strip()
 
     def _split_into_paragraphs(self, text: str) -> List[str]:
         """Split text into paragraphs."""

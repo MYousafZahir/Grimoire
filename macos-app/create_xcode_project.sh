@@ -202,10 +202,11 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 		GRIM_DOMAIN_MODELS_BUILD /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DOMAIN_MODELS /* Models.swift */; };
 		GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_NOTE_REPO /* NoteRepository.swift */; };
 		GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */; };
-		GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_NOTE /* NoteStore.swift */; };
-		GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_BACKLINK /* BacklinksStore.swift */; };
-		GRIM_INFOPLIST_BUILD /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = GRIM_INFOPLIST /* Info.plist */; };
-/* End PBXBuildFile section */
+			GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_NOTE /* NoteStore.swift */; };
+			GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_BACKLINK /* BacklinksStore.swift */; };
+			GRIM_INFOPLIST_BUILD /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = GRIM_INFOPLIST /* Info.plist */; };
+			GRIM_MARKDOWNUI_BUILD /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = GRIM_MARKDOWNUI_PROD /* MarkdownUI */; };
+	/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		GRIM_APP /* GrimoireApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireApp.swift; sourceTree = "<group>"; };
@@ -225,14 +226,15 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		GRIM_FRAMEWORKS /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
+			GRIM_FRAMEWORKS /* Frameworks */ = {
+				isa = PBXFrameworksBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					GRIM_MARKDOWNUI_BUILD /* MarkdownUI in Frameworks */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
+	/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		GRIM_GROUP_ROOT = {
@@ -329,14 +331,17 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
-			name = Grimoire;
-			productName = Grimoire;
-			productReference = GRIM_PRODUCT /* Grimoire.app */;
-			productType = "com.apple.product-type.application";
-		};
-/* End PBXNativeTarget section */
+				dependencies = (
+				);
+				name = Grimoire;
+				packageProductDependencies = (
+					GRIM_MARKDOWNUI_PROD /* MarkdownUI */,
+				);
+				productName = Grimoire;
+				productReference = GRIM_PRODUCT /* Grimoire.app */;
+				productType = "com.apple.product-type.application";
+			};
+	/* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		GRIM_PROJECT /* Project object */ = {
@@ -358,20 +363,42 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 			knownRegions = (
 				en,
 				Base,
-			);
-			mainGroup = GRIM_GROUP_ROOT;
-			productRefGroup = GRIM_GROUP_PRODUCTS /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
-			targets = (
+				);
+				mainGroup = GRIM_GROUP_ROOT;
+				packageReferences = (
+					GRIM_MARKDOWNUI_PKG /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				);
+				productRefGroup = GRIM_GROUP_PRODUCTS /* Products */;
+				projectDirPath = "";
+				projectRoot = "";
+				targets = (
 				GRIM_TARGET_MAIN /* Grimoire */,
 			);
-		};
-/* End PBXProject section */
+			};
+	/* End PBXProject section */
 
-/* Begin PBXResourcesBuildPhase section */
-		GRIM_RESOURCES_PHASE /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
+	/* Begin XCRemoteSwiftPackageReference section */
+			GRIM_MARKDOWNUI_PKG /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+				isa = XCRemoteSwiftPackageReference;
+				repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+				requirement = {
+					kind = upToNextMajorVersion;
+					minimumVersion = 2.2.0;
+				};
+			};
+	/* End XCRemoteSwiftPackageReference section */
+
+	/* Begin XCSwiftPackageProductDependency section */
+			GRIM_MARKDOWNUI_PROD /* MarkdownUI */ = {
+				isa = XCSwiftPackageProductDependency;
+				productName = MarkdownUI;
+				package = GRIM_MARKDOWNUI_PKG /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			};
+	/* End XCSwiftPackageProductDependency section */
+
+	/* Begin PBXResourcesBuildPhase section */
+			GRIM_RESOURCES_PHASE /* Resources */ = {
+				isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				GRIM_INFOPLIST_BUILD /* Info.plist in Resources */,
@@ -670,10 +697,9 @@ If files are missing from the project:
 4. Add to the Grimoire target
 
 ### Swift Package Dependencies
-If you want Markdown preview:
-1. In Xcode: File → Add Packages...
-2. Enter: `https://github.com/gonzalezreal/swift-markdown-ui`
-3. Add to Grimoire target
+The project includes MarkdownUI for markdown rendering.
+If package resolution fails, in Xcode: File → Add Packages..., enter
+`https://github.com/gonzalezreal/swift-markdown-ui`, and add it to the Grimoire target.
 
 ## Backend Requirements
 

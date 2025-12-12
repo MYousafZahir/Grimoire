@@ -81,8 +81,18 @@
   },
   {
     "isFramework" : false,
+    "moduleName" : "MarkdownUI",
+    "modulePath" : "\/Users\/yousafzahir\/Documents\/GitHub\/Grimoire\/macos-app\/Build\/Build\/Products\/Debug\/MarkdownUI.swiftmodule\/arm64-apple-macos.swiftmodule"
+  },
+  {
+    "isFramework" : false,
     "moduleName" : "Metal",
     "modulePath" : "\/Applications\/Xcode.app\/Contents\/Developer\/Toolchains\/XcodeDefault.xctoolchain\/usr\/lib\/swift\/macosx\/prebuilt-modules\/26.1\/Metal.swiftmodule\/arm64e-apple-macos.swiftmodule"
+  },
+  {
+    "isFramework" : false,
+    "moduleName" : "NetworkImage",
+    "modulePath" : "\/Users\/yousafzahir\/Documents\/GitHub\/Grimoire\/macos-app\/Build\/Build\/Products\/Debug\/NetworkImage.swiftmodule\/arm64-apple-macos.swiftmodule"
   },
   {
     "isFramework" : false,

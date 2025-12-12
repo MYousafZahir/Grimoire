@@ -1,17 +1,14 @@
 {
-  "folder x": {
-    "type": "folder",
-    "Test 1": {
-      "type": "note",
-      "id": "folder x/Test 1"
-    }
-  },
-  "pancake": {
+  "The Shattered Glass Sky": {
     "type": "note",
-    "id": "pancake"
+    "id": "The Shattered Glass Sky"
   },
-  "Test 2": {
+  "The Ratways": {
     "type": "note",
-    "id": "Test 2"
+    "id": "The Ratways"
+  },
+  "The City of Ibnasi": {
+    "type": "note",
+    "id": "The City of Ibnasi"
   }
 }
