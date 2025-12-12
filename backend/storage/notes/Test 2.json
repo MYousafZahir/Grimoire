@@ -1,0 +1,11 @@
+{
+  "id": "Test 2",
+  "title": "Test 2",
+  "path": "Test 2",
+  "parent_id": null,
+  "children": [],
+  "created_at": 1765514956.0087821,
+  "updated_at": 1765516180.576447,
+  "type": "note",
+  "content": "# Sorcerers\n\nSorcerers are mages who cast spells. All sorcerers live in Ibnasi."
+}

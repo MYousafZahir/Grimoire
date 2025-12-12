@@ -1,18 +1,17 @@
 {
-  "note_1765514212_6486": {
-    "type": "note",
-    "id": "note_1765514212_6486"
+  "folder x": {
+    "type": "folder",
+    "Test 1": {
+      "type": "note",
+      "id": "folder x/Test 1"
+    }
   },
-  "test name 1": {
+  "pancake": {
     "type": "note",
-    "id": "test name 1"
+    "id": "pancake"
   },
-  "note_1765514723_6517": {
+  "Test 2": {
     "type": "note",
-    "id": "note_1765514723_6517"
-  },
-  "this is the new name": {
-    "type": "note",
-    "id": "this is the new name"
+    "id": "Test 2"
   }
 }
