@@ -603,9 +603,12 @@ cat > "build_app.sh" << 'EOF'
 # Grimoire Build Script
 # Builds the macOS app from command line
 
-set -e
-
-echo "🔨 Building Grimoire..."
+	set -e
+	
+	SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	cd "$SCRIPT_DIR"
+	
+	echo "🔨 Building Grimoire..."
 
 # Clean up old builds
 rm -rf "Build"

@@ -1,7 +1,28 @@
 import Foundation
 
 protocol SearchRepository {
-    func search(noteId: String, text: String) async throws -> [Backlink]
+    func context(noteId: String, text: String, cursorOffset: Int, limit: Int) async throws -> [Backlink]
+    func warmup(forceRebuild: Bool) async throws
+}
+
+enum SearchRepositoryError: Error, LocalizedError {
+    case badStatus(Int, String?)
+    case decoding
+    case invalidURL
+
+    var errorDescription: String? {
+        switch self {
+        case .badStatus(let code, let detail):
+            if let detail, !detail.isEmpty {
+                return "Request failed with status \(code): \(detail)"
+            }
+            return "Request failed with status \(code)"
+        case .decoding:
+            return "Failed to decode response"
+        case .invalidURL:
+            return "Invalid backend URL"
+        }
+    }
 }
 
 struct HTTPSearchRepository: SearchRepository {
@@ -13,22 +34,35 @@ struct HTTPSearchRepository: SearchRepository {
         self.session = session
     }
 
-    func search(noteId: String, text: String) async throws -> [Backlink] {
-        guard let url = URL(string: "search", relativeTo: baseURL) else {
-            throw NoteRepositoryError.invalidURL
+    func context(noteId: String, text: String, cursorOffset: Int, limit: Int) async throws -> [Backlink] {
+        guard let url = URL(string: "context", relativeTo: baseURL) else {
+            throw SearchRepositoryError.invalidURL
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(SearchRequest(noteId: noteId, text: text))
+        request.timeoutInterval = 30
+        request.httpBody = try JSONEncoder().encode(
+            ContextRequest(noteId: noteId, text: text, cursorOffset: cursorOffset, limit: limit)
+        )
 
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw NoteRepositoryError.badStatus((response as? HTTPURLResponse)?.statusCode ?? -1)
+        guard let http = response as? HTTPURLResponse else {
+            throw SearchRepositoryError.badStatus(-1, nil)
+        }
+        guard http.statusCode == 200 else {
+            let detail = (try? JSONDecoder().decode(BackendErrorResponse.self, from: data).detail)
+                ?? String(data: data, encoding: .utf8)
+            throw SearchRepositoryError.badStatus(http.statusCode, detail)
         }
 
-        let decoded = try JSONDecoder().decode(SearchResponse.self, from: data)
+        let decoded: ContextResponse
+        do {
+            decoded = try JSONDecoder().decode(ContextResponse.self, from: data)
+        } catch {
+            throw SearchRepositoryError.decoding
+        }
         return decoded.results.map {
             Backlink(
                 id: "\($0.noteId)_\($0.chunkId)",
@@ -36,38 +70,98 @@ struct HTTPSearchRepository: SearchRepository {
                 noteTitle: $0.noteId,
                 chunkId: $0.chunkId,
                 excerpt: $0.text,
-                score: Double($0.score)
+                score: Double($0.score),
+                concept: $0.concept
             )
         }
+    }
+
+    func warmup(forceRebuild: Bool) async throws {
+        guard let url = URL(string: "admin/warmup", relativeTo: baseURL) else {
+            throw SearchRepositoryError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Model download + indexing can take a while on first run.
+        request.timeoutInterval = 60 * 15
+        request.httpBody = try JSONEncoder().encode(WarmupRequest(forceRebuild: forceRebuild))
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw SearchRepositoryError.badStatus(-1, nil)
+        }
+        guard http.statusCode == 200 else {
+            let detail = (try? JSONDecoder().decode(BackendErrorResponse.self, from: data).detail)
+                ?? String(data: data, encoding: .utf8)
+            throw SearchRepositoryError.badStatus(http.statusCode, detail)
+        }
+
+        _ = try? JSONDecoder().decode(WarmupResponse.self, from: data)
     }
 }
 
 // MARK: - DTOs
 
-private struct SearchRequest: Codable {
+private struct ContextRequest: Codable {
     let noteId: String
     let text: String
+    let cursorOffset: Int
+    let limit: Int
 
     enum CodingKeys: String, CodingKey {
         case noteId = "note_id"
         case text
+        case cursorOffset = "cursor_offset"
+        case limit
     }
 }
 
-private struct SearchResponse: Codable {
-    let results: [SearchResult]
+private struct ContextResponse: Codable {
+    let results: [ContextResult]
 }
 
-private struct SearchResult: Codable {
+private struct BackendErrorResponse: Codable {
+    let detail: String
+}
+
+private struct WarmupResponse: Codable {
+    let success: Bool
+    let embedderModel: String
+    let rerankerEnabled: Bool
+    let rerankerModel: String?
+    let contextIndexChunks: Int
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case embedderModel = "embedder_model"
+        case rerankerEnabled = "reranker_enabled"
+        case rerankerModel = "reranker_model"
+        case contextIndexChunks = "context_index_chunks"
+    }
+}
+
+private struct WarmupRequest: Codable {
+    let forceRebuild: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case forceRebuild = "force_rebuild"
+    }
+}
+
+private struct ContextResult: Codable {
     let noteId: String
     let chunkId: String
     let text: String
     let score: Float
+    let concept: String?
 
     enum CodingKeys: String, CodingKey {
         case noteId = "note_id"
         case chunkId = "chunk_id"
         case text
         case score
+        case concept
     }
 }

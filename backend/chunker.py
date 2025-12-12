@@ -79,6 +79,7 @@ class Chunker:
         Preserve newlines so markdown excerpts render correctly.
         """
         text = text.replace("\r\n", "\n").replace("\r", "\n")
+        text = text.replace("<!-- grimoire-chunk -->", "")
         return text.strip()
 
     def _split_into_paragraphs(self, text: str) -> List[str]:

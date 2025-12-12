@@ -19,6 +19,8 @@ Icon?
 .idea/
 .vscode/
 .cache/
+.tmp/
+.home/
 
 # Env / secrets
 .env

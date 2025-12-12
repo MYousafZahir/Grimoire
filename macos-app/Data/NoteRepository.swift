@@ -65,7 +65,8 @@ struct HTTPNoteRepository: NoteRepository {
     }
 
     func fetchContent(noteId: String) async throws -> NoteDocument {
-        guard let url = URL(string: "note/\(noteId)", relativeTo: baseURL) else {
+        let encodedId = noteId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? noteId
+        guard let url = URL(string: "note/\(encodedId)", relativeTo: baseURL) else {
             throw NoteRepositoryError.invalidURL
         }
 

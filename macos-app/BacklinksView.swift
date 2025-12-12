@@ -16,11 +16,6 @@ struct BacklinksView: View {
 
                 Spacer()
 
-                if backlinksStore.isSearching {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                }
-
                 Button(action: {
                     refreshBacklinks()
                 }) {
@@ -36,24 +31,34 @@ struct BacklinksView: View {
             .border(Color(NSColor.separatorColor), width: 1)
 
             if backlinksStore.results.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "link")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                if backlinksStore.isSearching {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Loading semantic backlinks…")
+                            .font(.callout)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    VStack(spacing: 16) {
+                        Image(systemName: "link")
+                            .font(.system(size: 48))
+                            .foregroundColor(.secondary)
 
-                    Text("No backlinks found")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
+                        Text("No backlinks found")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
 
-                    Text(
-                        "As you type, semantically related excerpts from other notes will appear here."
-                    )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                        Text(
+                            "As you type, semantically related excerpts from other notes will appear here."
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(selection: $selectedResultId) {
                     ForEach(backlinksStore.results, id: \.id) { result in
@@ -79,6 +84,19 @@ struct BacklinksView: View {
                 .listStyle(.plain)
             }
 
+            if let error = backlinksStore.lastError,
+               !error.contains("Code=-999"),
+               !error.contains("cancelled") {
+                Text("Backlinks error: \(error)")
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .border(Color(NSColor.separatorColor), width: 1)
+            }
+
             if !backlinksStore.results.isEmpty {
                 HStack {
                     Text("\(backlinksStore.results.count) related excerpts")
@@ -87,8 +105,8 @@ struct BacklinksView: View {
 
                     Spacer()
 
-                    if let topScore = backlinksStore.results.first?.score {
-                        Text("Top similarity: \(Int(topScore * 100))%")
+                    if let topScore = backlinksStore.results.map(\.score).max() {
+                        Text("Top match: \(Int(topScore * 100))%")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -98,9 +116,6 @@ struct BacklinksView: View {
                 .background(Color(NSColor.controlBackgroundColor))
                 .border(Color(NSColor.separatorColor), width: 1)
             }
-        }
-        .onChange(of: selectedNoteId) { _ in
-            backlinksStore.clear()
         }
     }
 
@@ -128,6 +143,14 @@ struct BacklinkRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let concept = result.concept, !concept.isEmpty {
+                Text(concept)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 20)
+            }
+
             HStack {
                 Image(systemName: "note.text")
                     .font(.caption)

@@ -28,7 +28,8 @@ final class ViewsTests: XCTestCase {
             noteTitle: "Note",
             chunkId: "chunk",
             excerpt: "Excerpt",
-            score: 0.8
+            score: 0.8,
+            concept: nil
         )
 
         XCTAssertEqual(backlink.id, "note_chunk")
@@ -85,5 +86,6 @@ private final class StubNoteRepository: NoteRepository {
 }
 
 private final class StubSearchRepository: SearchRepository {
-    func search(noteId: String, text: String) async throws -> [Backlink] { [] }
+    func context(noteId: String, text: String, cursorOffset: Int, limit: Int) async throws -> [Backlink] { [] }
+    func warmup(forceRebuild: Bool) async throws {}
 }

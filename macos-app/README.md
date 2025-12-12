@@ -84,7 +84,7 @@ Replaced by `NoteStore` + `HTTPNoteRepository`:
 ### SearchManager
 Replaced by `BacklinksStore` + `HTTPSearchRepository`:
 - `BacklinksStore` handles debounced semantic search and result cache per note
-- `HTTPSearchRepository` wraps `/search` backend endpoint
+- `HTTPSearchRepository` wraps `/context` backend endpoint
 
 ### Views
 - **ContentView**: Main container with three-pane layout
@@ -100,7 +100,7 @@ The app communicates with the Python backend via REST API:
 - `GET /notes` - Get note hierarchy for sidebar
 - `GET /note/{note_id}` - Get note content
 - `POST /update-note` - Save note content and update embeddings
-- `POST /search` - Get semantic backlinks for current note
+- `POST /context` - Get cursor-conditioned semantic backlinks for current note
 
 ## Configuration
 

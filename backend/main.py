@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import traceback
 
 from models import (
     CreateFolderRequest,
@@ -18,6 +20,8 @@ from models import (
     SearchResponsePayload,
     UpdateNoteRequest,
 )
+from context_models import ContextRequest, ContextResponsePayload, WarmupRequest, WarmupResponsePayload
+from context_service import ContextService
 from services import NoteService, SearchService
 from storage import NoteStorage
 
@@ -33,7 +37,8 @@ app.add_middleware(
 
 storage = NoteStorage()
 search_service = SearchService()
-note_service = NoteService(storage=storage, search=search_service)
+context_service = ContextService()
+note_service = NoteService(storage=storage, search=search_service, context=context_service)
 
 
 @app.get("/", tags=["health"])
@@ -150,18 +155,47 @@ async def delete(request: DeleteNoteRequest):
 @app.post("/search", response_model=SearchResponsePayload, tags=["search"])
 async def search(request: SearchRequest):
     try:
-        hits = search_service.search(request)
+        hits = await asyncio.to_thread(search_service.search, request)
         return SearchResponsePayload(results=hits)
     except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/context", response_model=ContextResponsePayload, tags=["search"])
+async def context(request: ContextRequest):
+    try:
+        hits = await asyncio.to_thread(note_service.semantic_context, request)
+        return ContextResponsePayload(results=hits)
+    except Exception as exc:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/admin/rebuild-index", tags=["admin"])
 async def rebuild_index():
     try:
-        processed = note_service.rebuild_index()
+        processed = await asyncio.to_thread(note_service.rebuild_index)
         return {"success": True, "notes_indexed": processed}
     except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/admin/warmup", response_model=WarmupResponsePayload, tags=["admin"])
+async def warmup(request: WarmupRequest = WarmupRequest()):
+    try:
+        records = storage.list_records()
+        # When force_rebuild is requested, rebuild both the semantic-context index
+        # and the classic search index to keep the app consistent after upgrades.
+        if request.force_rebuild:
+            await asyncio.to_thread(note_service.rebuild_index)
+        return await asyncio.to_thread(
+            context_service.warmup,
+            records.values(),
+            bool(request.force_rebuild),
+        )
+    except Exception as exc:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
 
 

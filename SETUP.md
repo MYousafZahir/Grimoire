@@ -113,7 +113,12 @@ curl http://127.0.0.1:8000/all-notes
 # Get a specific note
 curl http://127.0.0.1:8000/note/welcome
 
-# Test semantic search
+# Test cursor-conditioned semantic context (semantic backlinks)
+curl -X POST http://127.0.0.1:8000/context \
+  -H "Content-Type: application/json" \
+  -d '{"text": "machine learning artificial intelligence", "note_id": "test", "cursor_offset": 10}'
+
+# Legacy semantic search (non-cursor-conditioned)
 curl -X POST http://127.0.0.1:8000/search \
   -H "Content-Type: application/json" \
   -d '{"text": "machine learning artificial intelligence", "note_id": "test"}'

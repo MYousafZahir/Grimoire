@@ -4,10 +4,25 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "Building Grimoire..."
 
 # Clean
-rm -rf Build Grimoire.app 2>/dev/null || true
+if [ -d "Build/SourcePackages" ]; then
+    rm -rf "Build/Build" "Build/Index" "Build/Logs" "Build/Intermediates.noindex" 2>/dev/null || true
+else
+    rm -rf "Build" 2>/dev/null || true
+fi
+rm -rf "Grimoire.app" 2>/dev/null || true
+
+PKG_FLAGS=()
+if [ -d "Build/SourcePackages/checkouts" ] && [ -n "$(ls -A Build/SourcePackages/checkouts 2>/dev/null)" ]; then
+    PKG_FLAGS+=("-disableAutomaticPackageResolution")
+elif [ -d "Build/SourcePackages/repositories" ] && [ -n "$(ls -A Build/SourcePackages/repositories 2>/dev/null)" ]; then
+    PKG_FLAGS+=("-disableAutomaticPackageResolution")
+fi
 
 # Build
 xcodebuild \
@@ -17,6 +32,7 @@ xcodebuild \
     -derivedDataPath Build \
     -destination "platform=macOS" \
     -quiet \
+    "${PKG_FLAGS[@]}" \
     build
 
 # Check result

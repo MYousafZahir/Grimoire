@@ -16,10 +16,11 @@ struct SidebarView: View {
 		    @State private var showingDeleteConfirmation: Bool = false
 	    @State private var selectedIds: Set<String> = []
 	    @State private var selectionAnchorId: String? = nil
-	    @State private var showingBatchDeleteConfirmation: Bool = false
-	    @State private var batchDeleteIds: [String] = []
-	    @State private var isShowingBatchRenameAlert: Bool = false
-	    @State private var batchRenameBaseName: String = ""
+		    @State private var showingBatchDeleteConfirmation: Bool = false
+		    @State private var batchDeleteIds: [String] = []
+		    @State private var isShowingBatchRenameAlert: Bool = false
+		    @State private var batchRenameBaseName: String = ""
+		    @State private var isShowingKeybindLegend: Bool = false
 	    
 	    private struct VisibleNode: Identifiable {
 	        let id: String
@@ -45,16 +46,17 @@ struct SidebarView: View {
 		        )
 		    }
 
-		    private var mainContent: some View {
-		        VStack(spacing: 0) {
-		            offlineBanner
-		            if noteStore.tree.isEmpty {
-		                emptyState
-		            } else {
-		                treeList
-		            }
-		        }
-		    }
+			    private var mainContent: some View {
+			        VStack(spacing: 0) {
+			            offlineBanner
+			            if noteStore.tree.isEmpty {
+			                emptyState
+			            } else {
+			                treeList
+			            }
+			            keybindFooter
+			        }
+			    }
 
 		    @ViewBuilder
 		    private var offlineBanner: some View {
@@ -133,6 +135,7 @@ struct SidebarView: View {
 		            }
 		        }
 		        .listStyle(SidebarListStyle())
+		        .frame(maxWidth: .infinity, maxHeight: .infinity)
 		        .onDrop(of: [UTType.text], isTargeted: nil) { providers in
 		            loadNoteIds(from: providers) { droppedIds in
 		                Task { @MainActor in
@@ -143,6 +146,22 @@ struct SidebarView: View {
 		            }
 		        }
 		    }
+
+			    private var keybindFooter: some View {
+			        HStack {
+			            Spacer()
+			            Button(action: { isShowingKeybindLegend = true }) {
+			                Image(systemName: "keyboard")
+			                    .foregroundColor(.secondary)
+			            }
+			            .buttonStyle(.plain)
+			            .help("Keybinds")
+			            .padding(.horizontal, 8)
+			            .padding(.vertical, 6)
+			        }
+			        .background(Color(NSColor.controlBackgroundColor))
+			        .border(Color(NSColor.separatorColor), width: 1)
+			    }
 
 		    private func applyMenus<V: View>(_ view: V) -> some View {
 		        view
@@ -258,10 +277,13 @@ struct SidebarView: View {
 		                    isShowingBatchRenameAlert = false
 		                    batchRenameBaseName = ""
 		                }
-		            } message: {
-		                Text("Renames selected items to “Base name 1”, “Base name 2”, …")
-		            }
-		    }
+			            } message: {
+			                Text("Renames selected items to “Base name 1”, “Base name 2”, …")
+			            }
+			            .sheet(isPresented: $isShowingKeybindLegend) {
+			                KeybindLegendView()
+			            }
+			    }
 
 		    private func applyInteractions<V: View>(_ view: V) -> some View {
 		        view
@@ -699,6 +721,45 @@ private struct BranchGuide: View {
             context.stroke(path, with: .color(.secondary.opacity(0.25)), lineWidth: 1)
         }
         .frame(width: CGFloat(level) * step, height: 18)
+    }
+}
+
+private struct KeybindLegendView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Keybinds")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            GroupBox("Editor") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Click — edit chunk at cursor (render mode)")
+                    Text("Ctrl+Click+Drag — select text (render mode)")
+                    Text("Esc — exit editing, render full note")
+                    Text("Enter — insert newline")
+                    Text("Shift+Enter — split into new chunk below")
+                    Text("Backspace at start — merge with previous chunk")
+                    Text("Cmd+Z — undo")
+                    Text("Cmd+Shift+Z / Cmd+Y — redo")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            GroupBox("Sidebar") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Click — select item")
+                    Text("Shift+Click — range select")
+                    Text("Cmd/Ctrl+Click — toggle select")
+                    Text("Drag & drop — move notes/folders")
+                    Text("Delete — delete selected items")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(minWidth: 360, minHeight: 320)
     }
 }
 

@@ -21,6 +21,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE_DIR="${SCRIPT_DIR}/.rebuild-cache"
 VENV_DIR="${SCRIPT_DIR}/backend/venv"
 CACHED_VENV="${CACHE_DIR}/venv"
+XCODE_SPM_DIR="${SCRIPT_DIR}/macos-app/Build/SourcePackages"
+CACHED_XCODE_SPM_DIR="${CACHE_DIR}/SourcePackages"
 
 INTERACTIVE=0
 NO_CACHE=0
@@ -59,6 +61,18 @@ preserve_venv() {
   fi
 }
 
+preserve_xcode_packages() {
+  if [[ $NO_CACHE -eq 1 ]]; then
+    return 0
+  fi
+  if [[ -d "$XCODE_SPM_DIR" ]]; then
+    mkdir -p "$CACHE_DIR"
+    rm -rf "$CACHED_XCODE_SPM_DIR" 2>/dev/null || true
+    echo "Preserving Xcode Swift package checkouts to speed rebuild..."
+    mv "$XCODE_SPM_DIR" "$CACHED_XCODE_SPM_DIR"
+  fi
+}
+
 restore_venv() {
   if [[ $NO_CACHE -eq 1 ]]; then
     return 0
@@ -72,9 +86,23 @@ restore_venv() {
   fi
 }
 
+restore_xcode_packages() {
+  if [[ $NO_CACHE -eq 1 ]]; then
+    return 0
+  fi
+  if [[ -d "$CACHED_XCODE_SPM_DIR" ]]; then
+    mkdir -p "$(dirname "$XCODE_SPM_DIR")"
+    if [[ ! -d "$XCODE_SPM_DIR" ]]; then
+      echo "Restoring cached Xcode Swift package checkouts..."
+      mv "$CACHED_XCODE_SPM_DIR" "$XCODE_SPM_DIR"
+    fi
+  fi
+}
+
 RESTORED=0
 on_exit() {
   if [[ $RESTORED -eq 0 ]]; then
+    restore_xcode_packages || true
     restore_venv || true
     RESTORED=1
   fi
@@ -82,6 +110,7 @@ on_exit() {
 trap on_exit EXIT INT TERM
 
 preserve_venv
+preserve_xcode_packages
 
 if [[ $INTERACTIVE -eq 1 ]]; then
   bash "${SCRIPT_DIR}/cleanup.sh"
@@ -92,9 +121,9 @@ else
   printf "y\nn\n" | bash "${SCRIPT_DIR}/cleanup.sh"
 fi
 
+restore_xcode_packages
 restore_venv
 RESTORED=1
 
 echo "Running Grimoire..."
 bash "${SCRIPT_DIR}/grimoire" "${GRIMOIRE_ARGS[@]}"
-

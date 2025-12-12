@@ -145,7 +145,8 @@ The backend provides these REST endpoints:
 - `POST /update-note` - Save note and update embeddings
 - `POST /create-note` / `/create-folder` - Create items
 - `POST /rename-note` / `/delete-note` - Modify items
-- `POST /search` - Semantic search for related excerpts
+- `POST /context` - Cursor-conditioned semantic context (semantic backlinks)
+- `POST /search` - Legacy semantic search (non-cursor-conditioned)
 - `POST /admin/rebuild-index` - Rebuild vector index
 
 ## 🎨 Features

@@ -18,7 +18,8 @@ final class BacklinksStoreTests: XCTestCase {
                 noteTitle: "note1",
                 chunkId: "chunk1",
                 excerpt: "Test excerpt",
-                score: 0.9
+                score: 0.9,
+                concept: nil
             )
         ]
 
@@ -26,6 +27,7 @@ final class BacklinksStoreTests: XCTestCase {
         store.search(
             noteId: "current",
             text: String(repeating: "a", count: 20),
+            cursorOffset: 0,
             titleProvider: { _ in "Title" }
         )
 
@@ -49,7 +51,9 @@ extension BacklinksStoreTests {
 private final class StubSearchRepository: SearchRepository {
     var stubbedResults: [Backlink] = []
 
-    func search(noteId: String, text: String) async throws -> [Backlink] {
+    func context(noteId: String, text: String, cursorOffset: Int, limit: Int) async throws -> [Backlink] {
         return stubbedResults
     }
+
+    func warmup(forceRebuild: Bool) async throws {}
 }

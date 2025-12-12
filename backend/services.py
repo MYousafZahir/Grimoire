@@ -6,6 +6,8 @@ import time
 from typing import Iterable, List
 
 from chunker import Chunker
+from context_models import ContextRequest
+from context_service import ContextService
 from embedder import Embedder
 from indexer import Indexer
 from models import (
@@ -129,9 +131,11 @@ class NoteService:
         self,
         storage: NoteStorage | None = None,
         search: SearchService | None = None,
+        context: ContextService | None = None,
     ):
         self.storage = storage or NoteStorage()
         self.search = search or SearchService()
+        self.context = context or ContextService()
 
     def tree(self) -> NotesResponsePayload:
         return self.storage.get_tree()
@@ -145,6 +149,7 @@ class NoteService:
             request.note_id, request.content, request.parent_id
         )
         self.search.index_note(record)
+        self.context.index_note(record)
         return record
 
     def create_note(self, request: CreateNoteRequest) -> NoteRecord:
@@ -158,6 +163,7 @@ class NoteService:
             record.updated_at = time.time()
             self.storage._write_record(record)
         self.search.index_note(record)
+        self.context.index_note(record)
         return record
 
     def create_folder(self, request: CreateFolderRequest) -> NoteRecord:
@@ -167,12 +173,14 @@ class NoteService:
     def delete_item(self, note_id: str) -> List[str]:
         deleted_ids = self.storage.delete_item(note_id)
         self.search.delete_notes(deleted_ids)
+        self.context.delete_notes(deleted_ids)
         return deleted_ids
 
     def rename_item(self, old_id: str, new_id: str) -> str:
         new_root = self.storage.rename_item(old_id, new_id)
         records = self.storage.list_records()
         self.search.rebuild(records.values())
+        self.context.rebuild(records.values())
         return new_root
 
     def move_item(self, note_id: str, parent_id: str | None) -> NoteRecord:
@@ -182,4 +190,17 @@ class NoteService:
 
     def rebuild_index(self) -> int:
         records = self.storage.list_records()
+        self.context.rebuild(records.values())
         return self.search.rebuild(records.values())
+
+    def semantic_context(self, request: ContextRequest):
+        # Lazy bootstrap: if the user has an existing corpus, build the context index
+        # the first time it is needed instead of requiring a full manual rebuild.
+        records = self.storage.list_records()
+        built = self.context.ensure_built(records.values())
+        if not built:
+            raise RuntimeError(
+                "Semantic context index is unavailable. "
+                "Run POST /admin/warmup (or rebuild index) and ensure local models are installed."
+            )
+        return self.context.context(request)

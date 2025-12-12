@@ -424,8 +424,40 @@ except Exception as e:
 start_backend() {
     print_header "Starting Backend Server"
 
+    # Avoid hanging indefinitely if something is listening but not responding.
+    CURL_FAST_OPTS=(--silent --show-error --connect-timeout 1 --max-time 1)
+
+    # Conservative CPU threading defaults to avoid libomp/torch crashes.
+    export OMP_NUM_THREADS="${GRIMOIRE_OMP_NUM_THREADS:-1}"
+    export MKL_NUM_THREADS="${GRIMOIRE_MKL_NUM_THREADS:-1}"
+    export VECLIB_MAXIMUM_THREADS="${GRIMOIRE_VECLIB_MAXIMUM_THREADS:-1}"
+    export NUMEXPR_NUM_THREADS="${GRIMOIRE_NUMEXPR_NUM_THREADS:-1}"
+    export TOKENIZERS_PARALLELISM="false"
+    export GRIMOIRE_TORCH_NUM_THREADS="${GRIMOIRE_TORCH_NUM_THREADS:-1}"
+    export GRIMOIRE_TORCH_NUM_INTEROP_THREADS="${GRIMOIRE_TORCH_NUM_INTEROP_THREADS:-1}"
+
+    # If the port is already bound but the backend isn't responding, it's usually
+    # a stale Grimoire backend process. Try stopping it before starting a new one.
+    if lsof -ti:${BACKEND_PORT} >/dev/null 2>&1; then
+        if curl "${CURL_FAST_OPTS[@]}" "http://${BACKEND_HOST}:${BACKEND_PORT}/health" > /dev/null 2>&1; then
+            print_step "Backend is already running on port ${BACKEND_PORT}"
+            return 0
+        fi
+
+        print_warning "Port ${BACKEND_PORT} is in use but backend is not responding"
+        print_step "Attempting to stop a stale backend..."
+        stop_backend >/dev/null 2>&1 || true
+        sleep 1
+
+        if lsof -ti:${BACKEND_PORT} >/dev/null 2>&1; then
+            print_error "Port ${BACKEND_PORT} is still in use"
+            print_info "Run: lsof -nP -iTCP:${BACKEND_PORT} -sTCP:LISTEN"
+            return 1
+        fi
+    fi
+
     # Check if backend is already running
-    if curl -s "http://${BACKEND_HOST}:${BACKEND_PORT}" > /dev/null 2>&1; then
+    if curl "${CURL_FAST_OPTS[@]}" "http://${BACKEND_HOST}:${BACKEND_PORT}" > /dev/null 2>&1; then
         print_step "Backend is already running on port ${BACKEND_PORT}"
         return 0
     fi
@@ -457,7 +489,7 @@ start_backend() {
     # Wait for server to start
     print_step "Waiting for server to start..."
     for i in {1..30}; do
-        if curl -s "http://${BACKEND_HOST}:${BACKEND_PORT}" > /dev/null 2>&1; then
+        if curl "${CURL_FAST_OPTS[@]}" "http://${BACKEND_HOST}:${BACKEND_PORT}" > /dev/null 2>&1; then
             print_success "Backend server started successfully (PID: $BACKEND_PID)"
             return 0
         fi
@@ -571,11 +603,37 @@ EOF
 launch_macos_app() {
     print_header "Launching Grimoire Application"
 
-    # Check for existing Grimoire.app
+    APP_PATH=""
+
+    # Prefer using an existing build, but rebuild if sources are newer than the app.
     if [ -d "${MACOS_APP_DIR}/Grimoire.app" ]; then
-        print_step "Found existing Grimoire.app"
-        APP_PATH="${MACOS_APP_DIR}/Grimoire.app"
-    elif [ -f "${MACOS_APP_DIR}/build.sh" ]; then
+        APP_BIN="${MACOS_APP_DIR}/Grimoire.app/Contents/MacOS/Grimoire"
+        STALE=0
+
+        if [ ! -f "$APP_BIN" ]; then
+            STALE=1
+        else
+            if find "${MACOS_APP_DIR}" -name "*.swift" -newer "$APP_BIN" -print -quit 2>/dev/null | grep -q .; then
+                STALE=1
+            fi
+            if [ -f "${MACOS_APP_DIR}/Grimoire.xcodeproj/project.pbxproj" ] && [ "${MACOS_APP_DIR}/Grimoire.xcodeproj/project.pbxproj" -nt "$APP_BIN" ]; then
+                STALE=1
+            fi
+            if [ -f "${MACOS_APP_DIR}/Package.swift" ] && [ "${MACOS_APP_DIR}/Package.swift" -nt "$APP_BIN" ]; then
+                STALE=1
+            fi
+        fi
+
+        if [ "$STALE" = "1" ]; then
+            print_warning "Existing Grimoire.app is out of date; rebuilding..."
+            rm -rf "${MACOS_APP_DIR}/Grimoire.app" 2>/dev/null || true
+        else
+            print_step "Found existing Grimoire.app"
+            APP_PATH="${MACOS_APP_DIR}/Grimoire.app"
+        fi
+    fi
+
+    if [ -z "$APP_PATH" ] && [ -f "${MACOS_APP_DIR}/build.sh" ]; then
         print_step "Building Grimoire using build script..."
 
         # Make build script executable
@@ -599,7 +657,7 @@ launch_macos_app() {
             print_info "  cd macos-app && open Grimoire.xcodeproj"
             return 1
         fi
-    elif [ -d "${MACOS_APP_DIR}/Grimoire.xcodeproj" ]; then
+    elif [ -z "$APP_PATH" ] && [ -d "${MACOS_APP_DIR}/Grimoire.xcodeproj" ]; then
         print_step "Building Grimoire from Xcode project..."
 
         # Create build script if it doesn't exist
@@ -638,7 +696,7 @@ EOF
             print_info "Please open Grimoire.xcodeproj in Xcode and build manually"
             return 1
         fi
-    else
+    elif [ -z "$APP_PATH" ]; then
         print_error "No Grimoire.app found and no build system available"
         print_info "Please check the macos-app directory structure"
         print_info "Expected: build.sh or Grimoire.xcodeproj"
@@ -662,21 +720,21 @@ check_backend_health() {
     print_header "Checking Backend Health"
 
     print_step "Testing backend connection..."
-    if curl -s "${BACKEND_URL}" > /dev/null 2>&1; then
+    if curl --silent --show-error --connect-timeout 1 --max-time 1 "${BACKEND_URL}" > /dev/null 2>&1; then
         print_success "Backend is responding"
 
         # Test API endpoints
         print_step "Testing API endpoints..."
 
         # Test /all-notes
-        if curl -s "${BACKEND_URL}/all-notes" > /dev/null 2>&1; then
+        if curl --silent --show-error --connect-timeout 1 --max-time 2 "${BACKEND_URL}/all-notes" > /dev/null 2>&1; then
             print_success "✓ /all-notes endpoint working"
         else
             print_warning "⚠ /all-notes endpoint not responding"
         fi
 
         # Test note retrieval
-        if curl -s "${BACKEND_URL}/note/welcome" > /dev/null 2>&1; then
+        if curl --silent --show-error --connect-timeout 1 --max-time 2 "${BACKEND_URL}/note/welcome" > /dev/null 2>&1; then
             print_success "✓ Note retrieval working"
         else
             print_warning "⚠ Note retrieval not working"
@@ -769,11 +827,11 @@ check_status() {
 
     # Check backend
     print_step "Backend Server:"
-    if curl -s "${BACKEND_URL}" > /dev/null 2>&1; then
+    if curl --silent --show-error --connect-timeout 1 --max-time 1 "${BACKEND_URL}" > /dev/null 2>&1; then
         echo -e "  ${GREEN}✓ Running${NC} at ${BACKEND_URL}"
 
         # Get backend info
-        BACKEND_INFO=$(curl -s "${BACKEND_URL}")
+        BACKEND_INFO=$(curl --silent --show-error --connect-timeout 1 --max-time 2 "${BACKEND_URL}" 2>/dev/null || true)
         echo -e "  ${BLUE}Status:${NC} $(echo $BACKEND_INFO | grep -o '"status":"[^"]*"' | cut -d'"' -f4)"
     else
         echo -e "  ${RED}✗ Not running${NC}"

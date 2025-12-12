@@ -29,6 +29,7 @@ struct Backlink: Identifiable, Hashable {
     let chunkId: String
     let excerpt: String
     let score: Double
+    let concept: String?
 }
 
 extension NoteNode {
