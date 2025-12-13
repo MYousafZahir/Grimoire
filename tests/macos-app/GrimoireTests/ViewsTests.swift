@@ -73,6 +73,16 @@ extension ViewsTests {
 
 private final class StubNoteRepository: NoteRepository {
     func healthCheck() async -> Bool { true }
+    func fetchCurrentProject() async throws -> ProjectInfo {
+        ProjectInfo(name: "Default.grim", path: "/tmp/Default.grim", isActive: true)
+    }
+    func fetchProjects() async throws -> [ProjectInfo] { [try await fetchCurrentProject()] }
+    func createProject(name: String) async throws -> ProjectInfo {
+        ProjectInfo(name: name.hasSuffix(".grim") ? name : "\(name).grim", path: "/tmp/\(name).grim", isActive: true)
+    }
+    func openProject(path: String) async throws -> ProjectInfo {
+        ProjectInfo(name: (path as NSString).lastPathComponent, path: path, isActive: true)
+    }
     func fetchTree() async throws -> [NoteNode] { [] }
     func fetchContent(noteId: String) async throws -> NoteDocument {
         NoteDocument(id: noteId, title: noteId, content: "", kind: .note)
@@ -82,6 +92,7 @@ private final class StubNoteRepository: NoteRepository {
         NoteNode(id: path, title: path, path: path, kind: .folder, children: [])
     }
     func rename(noteId: String, newId: String) async throws {}
+    func moveItem(noteId: String, parentId: String?) async throws {}
     func delete(noteId: String) async throws {}
 }
 

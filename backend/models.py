@@ -127,3 +127,31 @@ class MoveItemRequest(BaseModel):
 
     note_id: str = Field(alias="note_id")
     parent_id: Optional[str] = Field(default=None, alias="parent_id")
+
+
+# ---------------------------------------------------------------------------
+# Project payloads
+# ---------------------------------------------------------------------------
+
+
+class ProjectInfoPayload(BaseModel):
+    name: str
+    path: str
+    is_active: bool = False
+
+
+class ProjectsResponsePayload(BaseModel):
+    projects: List[ProjectInfoPayload] = Field(default_factory=list)
+
+
+class ProjectResponsePayload(BaseModel):
+    project: ProjectInfoPayload
+
+
+class CreateProjectRequest(BaseModel):
+    name: str
+
+
+class OpenProjectRequest(BaseModel):
+    name: Optional[str] = None
+    path: Optional[str] = None

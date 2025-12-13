@@ -11,19 +11,22 @@ import traceback
 from models import (
     CreateFolderRequest,
     CreateNoteRequest,
+    CreateProjectRequest,
     DeleteNoteRequest,
     NoteContentPayload,
     NotesResponsePayload,
     MoveItemRequest,
+    OpenProjectRequest,
+    ProjectInfoPayload,
+    ProjectResponsePayload,
+    ProjectsResponsePayload,
     RenameNoteRequest,
     SearchRequest,
     SearchResponsePayload,
     UpdateNoteRequest,
 )
 from context_models import ContextRequest, ContextResponsePayload, WarmupRequest, WarmupResponsePayload
-from context_service import ContextService
-from services import NoteService, SearchService
-from storage import NoteStorage
+from app_state import GrimoireAppState
 
 app = FastAPI(title="Grimoire Backend", description="Semantic notes backend API")
 
@@ -35,10 +38,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-storage = NoteStorage()
-search_service = SearchService()
-context_service = ContextService()
-note_service = NoteService(storage=storage, search=search_service, context=context_service)
+state = GrimoireAppState()
 
 
 @app.get("/", tags=["health"])
@@ -50,11 +50,76 @@ async def root():
 async def health():
     return {"status": "ok", "message": "Grimoire backend is running"}
 
+@app.get("/projects", response_model=ProjectsResponsePayload, tags=["projects"])
+async def list_projects():
+    try:
+        current_root = state.current().project.root
+        projects = []
+        for project in state.project_manager.list_projects():
+            projects.append(
+                ProjectInfoPayload(
+                    name=project.name,
+                    path=str(project.root),
+                    is_active=project.root.resolve() == current_root.resolve(),
+                )
+            )
+        # If the active project is external (opened by path), include it too.
+        if not any(p.is_active for p in projects):
+            active = state.current().project
+            projects.insert(
+                0,
+                ProjectInfoPayload(
+                    name=active.name,
+                    path=str(active.root),
+                    is_active=True,
+                ),
+            )
+        return ProjectsResponsePayload(projects=projects)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/projects/current", response_model=ProjectResponsePayload, tags=["projects"])
+async def current_project():
+    try:
+        project = state.current().project
+        return ProjectResponsePayload(
+            project=ProjectInfoPayload(name=project.name, path=str(project.root), is_active=True)
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/projects/create", response_model=ProjectResponsePayload, tags=["projects"])
+async def create_project(request: CreateProjectRequest):
+    try:
+        services = state.create_project(request.name)
+        project = services.project
+        return ProjectResponsePayload(
+            project=ProjectInfoPayload(name=project.name, path=str(project.root), is_active=True)
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/projects/open", response_model=ProjectResponsePayload, tags=["projects"])
+async def open_project(request: OpenProjectRequest):
+    try:
+        services = state.open_project(name=request.name, path=request.path)
+        project = services.project
+        return ProjectResponsePayload(
+            project=ProjectInfoPayload(name=project.name, path=str(project.root), is_active=True)
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 @app.get("/notes", response_model=NotesResponsePayload, tags=["notes"])
 async def notes():
     try:
-        return note_service.tree()
+        return state.current().notes.tree()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -67,7 +132,7 @@ async def all_notes():
 @app.get("/note/{note_id:path}", response_model=NoteContentPayload, tags=["notes"])
 async def get_note(note_id: str):
     try:
-        return note_service.get_note(note_id)
+        return state.current().notes.get_note(note_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")
     except Exception as exc:
@@ -77,7 +142,7 @@ async def get_note(note_id: str):
 @app.post("/update-note", tags=["notes"])
 async def update_note(request: UpdateNoteRequest):
     try:
-        record = note_service.save_note(request)
+        record = state.current().notes.save_note(request)
         return {"success": True, "note_id": record.id}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -86,7 +151,7 @@ async def update_note(request: UpdateNoteRequest):
 @app.post("/create-note", tags=["notes"])
 async def create_note(request: CreateNoteRequest):
     try:
-        record = note_service.create_note(request)
+        record = state.current().notes.create_note(request)
         return {
             "success": True,
             "note_id": record.id,
@@ -104,7 +169,7 @@ async def create_note(request: CreateNoteRequest):
 @app.post("/create-folder", tags=["notes"])
 async def create_folder(request: CreateFolderRequest):
     try:
-        folder = note_service.create_folder(request)
+        folder = state.current().notes.create_folder(request)
         return {
             "success": True,
             "folder_id": folder.id,
@@ -122,7 +187,7 @@ async def create_folder(request: CreateFolderRequest):
 @app.post("/rename-note", tags=["notes"])
 async def rename(request: RenameNoteRequest):
     try:
-        new_id = note_service.rename_item(request.old_note_id, request.new_note_id)
+        new_id = state.current().notes.rename_item(request.old_note_id, request.new_note_id)
         return {"success": True, "note_id": new_id}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -133,7 +198,7 @@ async def rename(request: RenameNoteRequest):
 @app.post("/move-item", tags=["notes"])
 async def move_item(request: MoveItemRequest):
     try:
-        record = note_service.move_item(request.note_id, request.parent_id)
+        record = state.current().notes.move_item(request.note_id, request.parent_id)
         return {"success": True, "note_id": record.id, "parent_id": record.parent_id}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -144,7 +209,7 @@ async def move_item(request: MoveItemRequest):
 @app.post("/delete-note", tags=["notes"])
 async def delete(request: DeleteNoteRequest):
     try:
-        deleted = note_service.delete_item(request.note_id)
+        deleted = state.current().notes.delete_item(request.note_id)
         return {"success": True, "deleted": deleted}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -155,7 +220,7 @@ async def delete(request: DeleteNoteRequest):
 @app.post("/search", response_model=SearchResponsePayload, tags=["search"])
 async def search(request: SearchRequest):
     try:
-        hits = await asyncio.to_thread(search_service.search, request)
+        hits = await asyncio.to_thread(state.current().search.search, request)
         return SearchResponsePayload(results=hits)
     except Exception as exc:
         traceback.print_exc()
@@ -165,7 +230,7 @@ async def search(request: SearchRequest):
 @app.post("/context", response_model=ContextResponsePayload, tags=["search"])
 async def context(request: ContextRequest):
     try:
-        hits = await asyncio.to_thread(note_service.semantic_context, request)
+        hits = await asyncio.to_thread(state.current().notes.semantic_context, request)
         return ContextResponsePayload(results=hits)
     except Exception as exc:
         traceback.print_exc()
@@ -175,7 +240,7 @@ async def context(request: ContextRequest):
 @app.post("/admin/rebuild-index", tags=["admin"])
 async def rebuild_index():
     try:
-        processed = await asyncio.to_thread(note_service.rebuild_index)
+        processed = await asyncio.to_thread(state.current().notes.rebuild_index)
         return {"success": True, "notes_indexed": processed}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -184,13 +249,14 @@ async def rebuild_index():
 @app.post("/admin/warmup", response_model=WarmupResponsePayload, tags=["admin"])
 async def warmup(request: WarmupRequest = WarmupRequest()):
     try:
-        records = storage.list_records()
+        services = state.current()
+        records = services.storage.list_records()
         # When force_rebuild is requested, rebuild both the semantic-context index
         # and the classic search index to keep the app consistent after upgrades.
         if request.force_rebuild:
-            await asyncio.to_thread(note_service.rebuild_index)
+            await asyncio.to_thread(services.notes.rebuild_index)
         return await asyncio.to_thread(
-            context_service.warmup,
+            services.context.warmup,
             records.values(),
             bool(request.force_rebuild),
         )

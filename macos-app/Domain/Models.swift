@@ -32,6 +32,14 @@ struct Backlink: Identifiable, Hashable {
     let concept: String?
 }
 
+struct ProjectInfo: Identifiable, Hashable, Codable {
+    let name: String
+    let path: String
+    let isActive: Bool
+
+    var id: String { path }
+}
+
 extension NoteNode {
     static func sampleTree() -> [NoteNode] {
         [

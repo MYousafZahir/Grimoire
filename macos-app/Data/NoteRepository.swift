@@ -2,6 +2,10 @@ import Foundation
 
 protocol NoteRepository {
     func healthCheck() async -> Bool
+    func fetchCurrentProject() async throws -> ProjectInfo
+    func fetchProjects() async throws -> [ProjectInfo]
+    func createProject(name: String) async throws -> ProjectInfo
+    func openProject(path: String) async throws -> ProjectInfo
     func fetchTree() async throws -> [NoteNode]
     func fetchContent(noteId: String) async throws -> NoteDocument
     func saveContent(noteId: String, content: String, parentId: String?) async throws
@@ -41,17 +45,62 @@ struct HTTPNoteRepository: NoteRepository {
     }
 
     func healthCheck() async -> Bool {
-        guard let url = URL(string: "", relativeTo: baseURL) else { return false }
+        guard let url = URL(string: "health", relativeTo: baseURL) else { return false }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = 2
 
         do {
             let (_, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { return false }
-            return http.statusCode == 200
+            return (200...299).contains(http.statusCode)
         } catch {
             return false
         }
+    }
+
+    func fetchCurrentProject() async throws -> ProjectInfo {
+        guard let url = URL(string: "projects/current", relativeTo: baseURL) else {
+            throw NoteRepositoryError.invalidURL
+        }
+        let data = try await perform(request: URLRequest(url: url))
+        let decoded = try JSONDecoder().decode(ProjectResponse.self, from: data)
+        return decoded.project.toDomain()
+    }
+
+    func fetchProjects() async throws -> [ProjectInfo] {
+        guard let url = URL(string: "projects", relativeTo: baseURL) else {
+            throw NoteRepositoryError.invalidURL
+        }
+        let data = try await perform(request: URLRequest(url: url))
+        let decoded = try JSONDecoder().decode(ProjectsResponse.self, from: data)
+        return decoded.projects.map { $0.toDomain() }
+    }
+
+    func createProject(name: String) async throws -> ProjectInfo {
+        guard let url = URL(string: "projects/create", relativeTo: baseURL) else {
+            throw NoteRepositoryError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(CreateProjectRequest(name: name))
+        let data = try await perform(request: request)
+        let decoded = try JSONDecoder().decode(ProjectResponse.self, from: data)
+        return decoded.project.toDomain()
+    }
+
+    func openProject(path: String) async throws -> ProjectInfo {
+        guard let url = URL(string: "projects/open", relativeTo: baseURL) else {
+            throw NoteRepositoryError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(OpenProjectRequest(path: path))
+        let data = try await perform(request: request)
+        let decoded = try JSONDecoder().decode(ProjectResponse.self, from: data)
+        return decoded.project.toDomain()
     }
 
     func fetchTree() async throws -> [NoteNode] {
@@ -168,6 +217,38 @@ struct HTTPNoteRepository: NoteRepository {
 // MARK: - Helpers
 
 private extension HTTPNoteRepository {
+    struct ProjectResponse: Codable {
+        let project: ProjectInfoDTO
+    }
+
+    struct ProjectsResponse: Codable {
+        let projects: [ProjectInfoDTO]
+    }
+
+    struct ProjectInfoDTO: Codable {
+        let name: String
+        let path: String
+        let isActive: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case path
+            case isActive = "is_active"
+        }
+
+        func toDomain() -> ProjectInfo {
+            ProjectInfo(name: name, path: path, isActive: isActive ?? false)
+        }
+    }
+
+    struct CreateProjectRequest: Codable {
+        let name: String
+    }
+
+    struct OpenProjectRequest: Codable {
+        let path: String
+    }
+
     struct BackendNoteInfo: Codable {
         let id: String
         let title: String

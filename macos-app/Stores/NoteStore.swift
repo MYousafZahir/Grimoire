@@ -24,12 +24,16 @@ final class NoteStore: ObservableObject {
     @Published var isLoadingNote: Bool = false
     @Published var backendStatus: BackendStatus = .unknown
     @Published var lastError: String? = nil
+    @Published var currentProject: ProjectInfo? = nil
+    @Published var availableProjects: [ProjectInfo] = []
 
     private let repository: NoteRepository
     private var lastSavedContent: String = ""
     private var loadTask: Task<Void, Never>?
     private var saveRevision: Int = 0
     private let cancelledCode = URLError.Code.cancelled
+    private let recentProjectsKey = "grimoire.recentProjectPaths"
+    private let maxRecentProjects = 10
 
     init(repository: NoteRepository = HTTPNoteRepository()) {
         self.repository = repository
@@ -37,11 +41,67 @@ final class NoteStore: ObservableObject {
 
     func bootstrap() async {
         await checkBackend()
-        await refreshTree()
+        if backendStatus == .online {
+            await refreshCurrentProject()
+            await refreshProjects()
+        }
     }
 
     func checkBackend() async {
-        backendStatus = await repository.healthCheck() ? .online : .offline
+        // The backend may still be starting when the app launches (e.g. via `./grimoire`).
+        // Retry briefly before declaring it offline.
+        let deadline = Date().addingTimeInterval(6.0)
+        while true {
+            if await repository.healthCheck() {
+                backendStatus = .online
+                return
+            }
+            if Date() >= deadline { break }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+        backendStatus = .offline
+    }
+
+    func refreshCurrentProject() async {
+        do {
+            currentProject = try await repository.fetchCurrentProject()
+            lastError = nil
+            if let path = currentProject?.path {
+                addRecentProject(path: path)
+            }
+        } catch {
+            if isCancellation(error) { return }
+            // Non-fatal: keep app usable even if backend doesn't support projects.
+            currentProject = nil
+        }
+    }
+
+    func refreshProjects() async {
+        do {
+            availableProjects = try await repository.fetchProjects()
+        } catch {
+            if isCancellation(error) { return }
+            availableProjects = []
+        }
+    }
+
+    func recentProjectPaths() -> [String] {
+        guard let list = UserDefaults.standard.array(forKey: recentProjectsKey) as? [String] else {
+            return []
+        }
+        return list
+    }
+
+    private func addRecentProject(path: String) {
+        let normalized = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        var list = recentProjectPaths()
+        list.removeAll { $0 == normalized }
+        list.insert(normalized, at: 0)
+        if list.count > maxRecentProjects {
+            list = Array(list.prefix(maxRecentProjects))
+        }
+        UserDefaults.standard.set(list, forKey: recentProjectsKey)
     }
 
     func refreshTree() async {
@@ -59,6 +119,50 @@ final class NoteStore: ObservableObject {
             if tree.isEmpty {
                 tree = NoteNode.sampleTree()
             }
+        }
+    }
+
+    func openProject(path: String) async {
+        loadTask?.cancel()
+        selection = nil
+        currentContent = ""
+        lastSavedContent = ""
+        currentNoteKind = nil
+        saveState = .idle
+
+        do {
+            currentProject = try await repository.openProject(path: path)
+            addRecentProject(path: currentProject?.path ?? path)
+            backendStatus = .online
+            lastError = nil
+            await refreshProjects()
+            await refreshTree()
+        } catch {
+            if isCancellation(error) { return }
+            lastError = error.localizedDescription
+        }
+    }
+
+    func createProject(name: String) async {
+        loadTask?.cancel()
+        selection = nil
+        currentContent = ""
+        lastSavedContent = ""
+        currentNoteKind = nil
+        saveState = .idle
+
+        do {
+            currentProject = try await repository.createProject(name: name)
+            if let path = currentProject?.path {
+                addRecentProject(path: path)
+            }
+            backendStatus = .online
+            lastError = nil
+            await refreshProjects()
+            await refreshTree()
+        } catch {
+            if isCancellation(error) { return }
+            lastError = error.localizedDescription
         }
     }
 

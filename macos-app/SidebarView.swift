@@ -21,6 +21,8 @@ struct SidebarView: View {
 		    @State private var isShowingBatchRenameAlert: Bool = false
 		    @State private var batchRenameBaseName: String = ""
 		    @State private var isShowingKeybindLegend: Bool = false
+		    @State private var isShowingNewProjectAlert: Bool = false
+		    @State private var newProjectName: String = ""
 	    
 	    private struct VisibleNode: Identifiable {
 	        let id: String
@@ -199,6 +201,22 @@ struct SidebarView: View {
 		        }
 
 		        ToolbarItem {
+		            Menu {
+		                if let project = noteStore.currentProject {
+		                    Text(project.name)
+		                        .font(.caption)
+		                        .foregroundColor(.secondary)
+		                    Divider()
+		                }
+		                Button("New Project...") { isShowingNewProjectAlert = true }
+		                Button("Open Project...") { presentOpenProjectPanel() }
+		            } label: {
+		                Image(systemName: "shippingbox")
+		            }
+		            .help("Project")
+		        }
+
+		        ToolbarItem {
 		            Button(action: {
 		                Task { await noteStore.refreshTree() }
 		            }) {
@@ -239,6 +257,20 @@ struct SidebarView: View {
 		                }
 		            } message: {
 		                Text("Enter new name for the item:")
+		            }
+		            .alert("New Project", isPresented: $isShowingNewProjectAlert) {
+		                TextField("Project name", text: $newProjectName)
+		                Button("Cancel", role: .cancel) {
+		                    newProjectName = ""
+		                }
+		                Button("Create") {
+		                    let name = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+		                    newProjectName = ""
+		                    backlinksStore.clear()
+		                    Task { await noteStore.createProject(name: name) }
+		                }
+		            } message: {
+		                Text("Creates a new `.grim` project with its own notes and folders.")
 		            }
 		            .alert("Delete Item", isPresented: $showingDeleteConfirmation) {
 		                Button("Cancel", role: .cancel) {
@@ -304,6 +336,22 @@ struct SidebarView: View {
 		                    newNoteName = ""
 		                }
 		            }
+		    }
+
+		    private func presentOpenProjectPanel() {
+		        let panel = NSOpenPanel()
+		        panel.allowsMultipleSelection = false
+		        panel.canChooseFiles = false
+		        panel.canChooseDirectories = true
+		        panel.treatsFilePackagesAsDirectories = true
+		        panel.prompt = "Open"
+		        panel.message = "Select a `.grim` project folder"
+
+		        if panel.runModal() == .OK, let url = panel.url {
+		            guard url.pathExtension.lowercased() == "grim" else { return }
+		            backlinksStore.clear()
+		            Task { await noteStore.openProject(path: url.path) }
+		        }
 		    }
 
     private func confirmDeletion(for noteId: String) {

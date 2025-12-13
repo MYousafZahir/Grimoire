@@ -201,6 +201,11 @@ def _sentences_excerpt(text: str, max_sentences: int = 3, max_chars: int = 600) 
         return ""
     # Simple sentence splitter; deterministic and local.
     parts = re.split(r"(?<=[.!?])\s+", text)
+    parts = [p.strip() for p in parts if p.strip()]
+    # If the first "sentence" is just an ordered-list marker like "4.", merge it.
+    if len(parts) >= 2 and re.fullmatch(r"\d+[.)]?", parts[0].strip()):
+        parts[1] = f"{parts[0]} {parts[1]}".strip()
+        parts = parts[1:]
     excerpt = " ".join(parts[:max_sentences]).strip()
     if len(excerpt) > max_chars:
         excerpt = excerpt[:max_chars].rstrip()
@@ -212,6 +217,83 @@ def _excerpt_key(text: str) -> str:
     text = text.strip().lower()
     text = re.sub(r"\s+", " ", text)
     return text[:400]
+
+
+_INFO_STOPWORDS: Set[str] = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "but",
+    "by",
+    "for",
+    "from",
+    "has",
+    "have",
+    "if",
+    "in",
+    "into",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "their",
+    "then",
+    "there",
+    "these",
+    "this",
+    "to",
+    "was",
+    "were",
+    "with",
+}
+
+
+def _is_low_information_text(text: str) -> bool:
+    """True for snippets unlikely to provide useful context."""
+    raw = (text or "").strip()
+    if not raw:
+        return True
+
+    # Markdown-ish markers / punctuation-only / digits-only.
+    if re.fullmatch(r"[#>*_\-\s\[\]\(\)`~\.\,\:\;\!\?0-9]+", raw):
+        return True
+
+    lowered = raw.lower().strip()
+    if lowered in {
+        "key points",
+        "key points.",
+        "key point",
+        "key point.",
+        "summary",
+        "summary.",
+        "notes",
+        "notes.",
+        "todo",
+        "todo.",
+    }:
+        return True
+
+    alpha_chars = sum(1 for ch in raw if ch.isalpha())
+    if alpha_chars < int(os.environ.get("GRIMOIRE_MIN_SNIPPET_ALPHA", "8")):
+        return True
+
+    tokens = re.findall(r"[A-Za-z][A-Za-z']*", raw)
+    if len(tokens) < int(os.environ.get("GRIMOIRE_MIN_SNIPPET_TOKENS", "3")):
+        return True
+
+    content = [t.lower() for t in tokens if len(t) >= 3 and t.lower() not in _INFO_STOPWORDS]
+    if len(content) < int(os.environ.get("GRIMOIRE_MIN_SNIPPET_CONTENT_TOKENS", "2")):
+        return True
+
+    return False
 
 
 class _SparseTokenizer:
@@ -1411,6 +1493,8 @@ class ContextService:
             meta = self.index.get_chunk(cid)
             if not meta:
                 continue
+            if _is_low_information_text(str(meta.get("text") or "")):
+                continue
             vec = _normalize_dense(meta.get("dense") or [])
             if vec.size == 0 or int(vec.shape[0]) != int(window_vec.shape[0]):
                 continue
@@ -1499,6 +1583,8 @@ class ContextService:
             raw_score = float(debug.get("combined", base))
 
             excerpt = _sentences_excerpt(meta.get("text") or "")
+            if _is_low_information_text(excerpt):
+                continue
             ex_key = _excerpt_key(excerpt)
             # Avoid showing multiple identical excerpts (often from short headings/boilerplate).
             if ex_key and ex_key in seen_excerpt_keys:
