@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import MarkdownUI
+import NaturalLanguage
 
 struct EditorView: View {
     @EnvironmentObject private var noteStore: NoteStore
@@ -17,6 +18,7 @@ struct EditorView: View {
     @State private var pendingCursorPlacement: PendingCursorPlacement? = nil
     @State private var cursorOffsetInCleanedText: Int = 0
     @State private var lastActiveChunkForBacklinks: UUID? = nil
+    @State private var chunkHeights: [UUID: CGFloat] = [:]
 
     private var isFolderSelected: Bool {
         guard let selectedNoteId else { return false }
@@ -54,14 +56,14 @@ struct EditorView: View {
             .background(Color(NSColor.controlBackgroundColor))
             .border(Color(NSColor.separatorColor), width: 1)
 
-            if showPreview, let selectedNoteId, !isFolderSelected {
+            if showPreview, selectedNoteId != nil, !isFolderSelected {
                 ScrollView {
                     Markdown(markdownForRendering(noteContent))
                         .markdownTheme(.docC)
                         .textSelection(.enabled)
                         .padding()
                 }
-            } else if let selectedNoteId, !isFolderSelected {
+            } else if selectedNoteId != nil, !isFolderSelected {
                 if activeChunkId == nil {
                     ScrollView {
                         ZStack(alignment: .topLeading) {
@@ -80,14 +82,19 @@ struct EditorView: View {
                         .padding()
                     }
                 } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(chunks) { chunk in
-                                let (overlayText, overlayMapping) = clickOverlayForChunk(chunk.text)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                ForEach(chunks) { chunk in
+                                    let isOnlyEmptyChunk = chunks.count == 1
+                                        && chunk.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    let (overlayText, overlayMapping) = clickOverlayForChunk(chunk.text)
                                 ChunkRow(
                                     chunk: chunk,
                                     isActive: chunk.id == activeChunkId,
                                     shouldFocus: chunk.id == activeChunkId,
+                                    showEmptyPlaceholder: isOnlyEmptyChunk,
+                                    measuredHeight: heightBinding(for: chunk.id),
                                     requestedSelection: pendingSelectionRange(for: chunk),
                                     onSelectionApplied: { clearPendingCursorPlacementIfNeeded(chunk.id) },
                                     onActivate: { activateChunk(chunk.id) },
@@ -101,11 +108,28 @@ struct EditorView: View {
                                     onCursorLocationChange: { location in
                                         updateCursorOffsetForChunk(chunkId: chunk.id, localUTF16Cursor: location)
                                     },
+                                    onAutoChunk: { text, cursor in
+                                        autoChunkIfNeeded(chunkId: chunk.id, newText: text, localUTF16Cursor: cursor)
+                                    },
                                     textBinding: binding(for: chunk)
                                 )
+                                    .id(chunk.id)
+                                }
+                            }
+                            .padding()
+                        }
+                        .onAppear {
+                            guard let activeChunkId else { return }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                                proxy.scrollTo(activeChunkId, anchor: .center)
                             }
                         }
-                        .padding()
+                        .onChange(of: activeChunkId) { newValue in
+                            guard let newValue else { return }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                                proxy.scrollTo(newValue, anchor: .center)
+                            }
+                        }
                     }
                 }
             } else if let selectedNoteId, isFolderSelected {
@@ -272,9 +296,153 @@ struct EditorView: View {
         return NSRange(location: clamped, length: 0)
     }
 
+    private func heightBinding(for chunkId: UUID) -> Binding<CGFloat> {
+        Binding(
+            get: { chunkHeights[chunkId] ?? 120 },
+            set: { chunkHeights[chunkId] = $0 }
+        )
+    }
+
     private func clearPendingCursorPlacementIfNeeded(_ chunkId: UUID) {
         guard pendingCursorPlacement?.chunkId == chunkId else { return }
         pendingCursorPlacement = nil
+    }
+
+    private func tokenCount(_ text: String) -> Int {
+        // Approximate tokens as whitespace-delimited terms; good enough for UI chunk sizing.
+        text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+    }
+
+    private func splitIntoSentenceSpans(_ text: String) -> [String] {
+        let trimmed = text
+        if trimmed.isEmpty { return [""] }
+
+        let tokenizer = NLTokenizer(unit: .sentence)
+        tokenizer.string = trimmed
+
+        var ranges: [Range<String.Index>] = []
+        tokenizer.enumerateTokens(in: trimmed.startIndex..<trimmed.endIndex) { range, _ in
+            ranges.append(range)
+            return true
+        }
+        if ranges.isEmpty { return [trimmed] }
+
+        var spans: [String] = []
+        for i in 0..<ranges.count {
+            let start = ranges[i].lowerBound
+            let end = (i + 1 < ranges.count) ? ranges[i + 1].lowerBound : trimmed.endIndex
+            spans.append(String(trimmed[start..<end]))
+        }
+        return spans
+    }
+
+    private func packSpansIntoChunks(_ spans: [String], minTokens: Int, targetTokens: Int, maxTokens: Int) -> [String] {
+        var chunksOut: [String] = []
+        var current = ""
+        var currentTokens = 0
+
+        func flushCurrent() {
+            let part = current.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !part.isEmpty || chunksOut.isEmpty {
+                chunksOut.append(part)
+            }
+            current = ""
+            currentTokens = 0
+        }
+
+        for span in spans {
+            let spanText = span
+            let spanTokens = tokenCount(spanText)
+            if currentTokens == 0 {
+                current = spanText
+                currentTokens = spanTokens
+                if currentTokens >= maxTokens {
+                    flushCurrent()
+                }
+                continue
+            }
+
+            let tentativeTokens = currentTokens + spanTokens
+            // Prefer to cut near the target once we're past minTokens.
+            if currentTokens >= minTokens && tentativeTokens > targetTokens {
+                flushCurrent()
+                current = spanText
+                currentTokens = spanTokens
+                if currentTokens >= maxTokens {
+                    flushCurrent()
+                }
+                continue
+            }
+
+            if tentativeTokens > maxTokens {
+                flushCurrent()
+                current = spanText
+                currentTokens = spanTokens
+                if currentTokens >= maxTokens {
+                    flushCurrent()
+                }
+                continue
+            }
+
+            current += spanText
+            currentTokens = tentativeTokens
+        }
+
+        if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            flushCurrent()
+        }
+        return chunksOut.isEmpty ? [""] : chunksOut
+    }
+
+    private func autoChunkIfNeeded(chunkId: UUID, newText: String, localUTF16Cursor: Int) {
+        // Hard cap: when exceeded, split into ~sidebar-sized chunks.
+        let hardMax = 220
+        guard tokenCount(newText) > hardMax else { return }
+
+        let minTokens = 80
+        let targetTokens = 140
+
+        let spans = splitIntoSentenceSpans(newText)
+        let parts = packSpansIntoChunks(spans, minTokens: minTokens, targetTokens: targetTokens, maxTokens: hardMax)
+        guard parts.count > 1 else { return }
+
+        guard let selectedNoteId else { return }
+        guard let index = chunks.firstIndex(where: { $0.id == chunkId }) else { return }
+
+        // Map cursor into the new chunk parts by UTF-16 offset.
+        let clampedCursor = max(0, min(localUTF16Cursor, (newText as NSString).length))
+        var running = 0
+        var targetPartIndex = 0
+        var targetLocalCursor = 0
+        for (i, part) in parts.enumerated() {
+            let len = (part as NSString).length
+            if clampedCursor <= running + len {
+                targetPartIndex = i
+                targetLocalCursor = max(0, clampedCursor - running)
+                break
+            }
+            running += len
+        }
+
+        // Replace current chunk with packed parts, keeping the original id for the part
+        // that contains the cursor so focus remains stable.
+        chunks.remove(at: index)
+        var inserted: [EditorChunk] = []
+        for (i, part) in parts.enumerated() {
+            if i == targetPartIndex {
+                inserted.append(EditorChunk(id: chunkId, text: part))
+            } else {
+                inserted.append(EditorChunk(text: part))
+            }
+        }
+        chunks.insert(contentsOf: inserted, at: index)
+
+        noteContent = joinChunks(chunks)
+        handleTextChange(noteContent, noteId: selectedNoteId)
+
+        activeChunkId = chunkId
+        focusedChunkId = chunkId
+        pendingCursorPlacement = PendingCursorPlacement(chunkId: chunkId, markdownIndex: targetLocalCursor)
     }
 
     private func buildSelectionOverlayModel(from chunks: [EditorChunk]) -> SelectionOverlayModel {
@@ -541,10 +709,8 @@ struct EditorView: View {
     }
 
     private func compactEmptyChunksIfNeeded() {
-        let trimmedChunks = chunks.filter {
-            !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        if trimmedChunks.isEmpty {
+        let hasNonEmpty = chunks.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if !hasNonEmpty {
             if chunks.count != 1 || !(chunks.first?.text.isEmpty ?? true) {
                 chunks = [EditorChunk(text: "")]
                 noteContent = joinChunks(chunks)
@@ -554,16 +720,7 @@ struct EditorView: View {
             }
             return
         }
-
-        guard trimmedChunks.count != chunks.count else { return }
-        chunks = trimmedChunks
-        let fullText = joinChunks(chunks)
-        if fullText != noteContent {
-            noteContent = fullText
-            if let noteId = selectedNoteId {
-                handleTextChange(fullText, noteId: noteId)
-            }
-        }
+        // Keep empty chunks: they represent intentional blank-line spacing.
     }
 
     private func mergeChunkWithPrevious(_ chunkId: UUID) {
@@ -595,7 +752,7 @@ struct EditorView: View {
 
     private func binding(for chunk: EditorChunk) -> Binding<String> {
         Binding(
-            get: { chunk.text },
+            get: { chunks.first(where: { $0.id == chunk.id })?.text ?? "" },
             set: { newValue in
                 guard let selectedNoteId else { return }
                 guard let index = chunks.firstIndex(where: { $0.id == chunk.id }) else { return }
@@ -724,6 +881,8 @@ private struct ChunkRow: View {
     let chunk: EditorChunk
     let isActive: Bool
     let shouldFocus: Bool
+    let showEmptyPlaceholder: Bool
+    let measuredHeight: Binding<CGFloat>
     let requestedSelection: NSRange?
     let onSelectionApplied: () -> Void
     let onActivate: () -> Void
@@ -733,6 +892,7 @@ private struct ChunkRow: View {
     let onExitCommand: () -> Void
     let onMergeWithPrevious: () -> Void
     let onCursorLocationChange: (Int) -> Void
+    let onAutoChunk: (String, Int) -> Void
     let textBinding: Binding<String>
 
     var body: some View {
@@ -745,22 +905,32 @@ private struct ChunkRow: View {
                     onSelectionApplied: onSelectionApplied,
                     onCursorLocationChange: onCursorLocationChange,
                     onExitCommand: onExitCommand,
-                    onMergeWithPrevious: onMergeWithPrevious
+                    onMergeWithPrevious: onMergeWithPrevious,
+                    measuredHeight: measuredHeight,
+                    onAutoChunk: onAutoChunk
                 )
-                    .frame(minHeight: 120)
+                    .frame(minHeight: 44, idealHeight: measuredHeight.wrappedValue, maxHeight: measuredHeight.wrappedValue)
                     .padding(6)
                     .background(Color(NSColor.textBackgroundColor))
                     .cornerRadius(6)
             } else {
                 if chunk.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Click to start writing…")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .onTapGesture {
-                            onActivateAtMarkdownIndex(0)
+                    Group {
+                        if showEmptyPlaceholder {
+                            Text("Click to start writing…")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Color.clear
+                                .frame(height: 18)
                         }
+                    }
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onActivateAtMarkdownIndex(0)
+                    }
                 } else {
                     Markdown(chunk.text)
                         .markdownTheme(.docC)
@@ -803,29 +973,34 @@ private struct ChunkTextEditor: NSViewRepresentable {
     let onCursorLocationChange: (Int) -> Void
     let onExitCommand: () -> Void
     let onMergeWithPrevious: () -> Void
+    @Binding var measuredHeight: CGFloat
+    let onAutoChunk: (String, Int) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = ChunkScrollView()
-        scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = true
-        scrollView.drawsBackground = false
-        scrollView.onExitCommand = onExitCommand
+    func makeNSView(context: Context) -> ChunkEditorContainerView {
+        let container = ChunkEditorContainerView()
+        container.translatesAutoresizingMaskIntoConstraints = false
 
         let textView = ChunkNSTextView()
         textView.isRichText = false
         textView.allowsUndo = true
-        textView.backgroundColor = .textBackgroundColor
+        textView.drawsBackground = false
+        textView.backgroundColor = .clear
         textView.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-        textView.textContainerInset = NSSize(width: 4, height: 6)
+        textView.textContainerInset = NSSize(width: 4, height: 8)
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
-        textView.autoresizingMask = [.width]
+        textView.autoresizingMask = []
+        textView.translatesAutoresizingMaskIntoConstraints = false
         textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        // Allow the text container to grow vertically so we can measure full content height.
+        // If this tracks the view height, `usedRect` will be capped to the current frame and
+        // the chunk will never expand as you add lines.
+        textView.textContainer?.heightTracksTextView = false
+        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
         textView.onExitCommand = onExitCommand
         textView.chunkSeparator = grimoireChunkSeparator
         textView.wantsInitialFocus = shouldFocus
@@ -833,39 +1008,75 @@ private struct ChunkTextEditor: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.string = text
         textView.pendingSelection = requestedSelection
+        textView.onHeightChange = { height in
+            if abs(measuredHeight - height) > 0.5 {
+                measuredHeight = height
+            }
+        }
+        textView.onAutoChunk = onAutoChunk
 
-        scrollView.documentView = textView
-        return scrollView
+        container.attach(textView: textView)
+        return container
     }
 
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? ChunkNSTextView else { return }
-        if textView.string != text {
+    func updateNSView(_ nsView: ChunkEditorContainerView, context: Context) {
+        guard let textView = nsView.textView else { return }
+        // While the user is actively editing (focused), do not overwrite the NSTextView's
+        // content from SwiftUI state updates; doing so can reset the insertion point and
+        // cause "caret jumps to end" while typing.
+        let isFocused = (nsView.window?.firstResponder === textView)
+        if textView.string != text, !(shouldFocus && isFocused) {
+            let hadSelection = textView.selectedRange()
             textView.string = text
+            if requestedSelection == nil {
+                let length = (textView.string as NSString).length
+                let clampedLoc = max(0, min(hadSelection.location, length))
+                let clampedLen = max(0, min(hadSelection.length, length - clampedLoc))
+                textView.setSelectedRange(NSRange(location: clampedLoc, length: clampedLen))
+            }
         }
         textView.wantsInitialFocus = shouldFocus
         textView.pendingSelection = requestedSelection
+        // Hand off cursor placement to the NSTextView immediately so SwiftUI doesn't
+        // keep re-sending the same requestedSelection during subsequent renders.
+        if requestedSelection != nil {
+            onSelectionApplied()
+        }
         if shouldFocus {
-            DispatchQueue.main.async {
-                if let window = nsView.window, window.firstResponder !== textView {
-                    window.makeFirstResponder(textView)
-                } else if nsView.window == nil {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        if let window = nsView.window, window.firstResponder !== textView {
-                            window.makeFirstResponder(textView)
-                        }
-                    }
-                }
+            // Apply focus/selection synchronously whenever possible to avoid a race where
+            // the first keystroke lands at the default insertion point (often the end).
+            if let window = nsView.window, window.firstResponder !== textView {
+                window.makeFirstResponder(textView)
+            }
 
-                if let requestedSelection = requestedSelection {
-                    let length = (textView.string as NSString).length
-                    let clamped = max(0, min(requestedSelection.location, length))
-                    if textView.lastAppliedSelectionLocation != clamped {
-                        textView.lastAppliedSelectionLocation = clamped
-                        let range = NSRange(location: clamped, length: 0)
-                        textView.setSelectedRange(range)
-                        textView.scrollRangeToVisible(range)
-                        onSelectionApplied()
+            if let requestedSelection = requestedSelection {
+                let length = (textView.string as NSString).length
+                let clamped = max(0, min(requestedSelection.location, length))
+                if textView.lastAppliedSelectionLocation != clamped {
+                    textView.lastAppliedSelectionLocation = clamped
+                    let range = NSRange(location: clamped, length: 0)
+                    textView.setSelectedRange(range)
+                    textView.scrollRangeToVisible(range)
+                    onSelectionApplied()
+                }
+            }
+
+            // If we don't have a window yet, try again shortly.
+            if nsView.window == nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                    if let window = nsView.window, window.firstResponder !== textView {
+                        window.makeFirstResponder(textView)
+                    }
+                    if let requestedSelection = requestedSelection {
+                        let length = (textView.string as NSString).length
+                        let clamped = max(0, min(requestedSelection.location, length))
+                        if textView.lastAppliedSelectionLocation != clamped {
+                            textView.lastAppliedSelectionLocation = clamped
+                            let range = NSRange(location: clamped, length: 0)
+                            textView.setSelectedRange(range)
+                            textView.scrollRangeToVisible(range)
+                            onSelectionApplied()
+                        }
                     }
                 }
             }
@@ -882,6 +1093,9 @@ private struct ChunkTextEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+            if let tv = textView as? ChunkNSTextView {
+                tv.reportHeight()
+            }
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -898,12 +1112,29 @@ private final class ChunkNSTextView: NSTextView {
     var onMergeWithPrevious: (() -> Void)?
     var pendingSelection: NSRange?
     var lastAppliedSelectionLocation: Int?
+    var onHeightChange: ((CGFloat) -> Void)?
+    var onAutoChunk: ((String, Int) -> Void)?
+    private var isRequestingAutoChunk: Bool = false
+
+    private func applyPendingSelectionIfNeeded() {
+        guard let pendingSelection else { return }
+        let length = (string as NSString).length
+        let clamped = max(0, min(pendingSelection.location, length))
+        guard lastAppliedSelectionLocation != clamped else { return }
+        lastAppliedSelectionLocation = clamped
+        let range = NSRange(location: clamped, length: 0)
+        setSelectedRange(range)
+        scrollRangeToVisible(range)
+        self.pendingSelection = nil
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if wantsInitialFocus, let window, window.firstResponder !== self {
             window.makeFirstResponder(self)
         }
+        applyPendingSelectionIfNeeded()
+        reportHeight()
     }
 
     override func cancelOperation(_ sender: Any?) {
@@ -911,6 +1142,11 @@ private final class ChunkNSTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
+        // Critical: ensure the clicked insertion point is applied before the first
+        // keystroke is handled; otherwise the first character can be inserted at
+        // the default caret location (often end-of-chunk), then the caret jumps.
+        applyPendingSelectionIfNeeded()
+
         if event.modifierFlags.contains(.command),
            let chars = event.charactersIgnoringModifiers?.lowercased() {
             if chars == "z" {
@@ -944,6 +1180,7 @@ private final class ChunkNSTextView: NSTextView {
             return
         }
         super.keyDown(with: event)
+        requestAutoChunkIfNeeded()
     }
 
     private func insertChunkSeparator() {
@@ -955,41 +1192,71 @@ private final class ChunkNSTextView: NSTextView {
             insertText(chunkSeparator, replacementRange: range)
         }
     }
+
+    func reportHeight() {
+        guard let layoutManager, let textContainer else { return }
+        let length = (string as NSString).length
+        if length > 0 {
+            layoutManager.ensureLayout(forCharacterRange: NSRange(location: 0, length: length))
+        } else {
+            layoutManager.ensureLayout(for: textContainer)
+        }
+        let used = layoutManager.usedRect(for: textContainer)
+        let height = used.height + textContainerInset.height * 2 + 10
+        onHeightChange?(max(44, height))
+    }
+
+    private func requestAutoChunkIfNeeded() {
+        guard !isRequestingAutoChunk else { return }
+        let hardMax = 220
+        let tokens = string.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        guard tokens > hardMax else { return }
+        isRequestingAutoChunk = true
+        let cursor = selectedRange().location
+        let snapshot = string
+        DispatchQueue.main.async { [weak self] in
+            self?.onAutoChunk?(snapshot, cursor)
+            self?.isRequestingAutoChunk = false
+        }
+    }
+
+    override func paste(_ sender: Any?) {
+        super.paste(sender)
+        reportHeight()
+        requestAutoChunkIfNeeded()
+    }
+}
+
+private final class ChunkEditorContainerView: NSView {
+    var textView: ChunkNSTextView?
+    private var lastWidth: CGFloat = 0
+
+    func attach(textView: ChunkNSTextView) {
+        self.textView = textView
+        addSubview(textView)
+        NSLayoutConstraint.activate([
+            textView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            textView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            textView.topAnchor.constraint(equalTo: topAnchor),
+            textView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    override func layout() {
+        super.layout()
+        guard let textView else { return }
+        guard bounds.width > 0 else { return }
+        guard abs(bounds.width - lastWidth) > 0.5 else { return }
+        lastWidth = bounds.width
+        if let tc = textView.textContainer {
+            tc.containerSize = NSSize(width: bounds.width, height: CGFloat.greatestFiniteMagnitude)
+        }
+        textView.reportHeight()
+    }
 }
 
 private let grimoireChunkMarker = "<!-- grimoire-chunk -->"
 private let grimoireChunkSeparator = "\n\n<!-- grimoire-chunk -->\n\n"
-
-private final class ChunkScrollView: NSScrollView {
-    var onExitCommand: (() -> Void)?
-
-    override func cancelOperation(_ sender: Any?) {
-        onExitCommand?()
-    }
-
-    override func keyDown(with event: NSEvent) {
-        if event.modifierFlags.contains(.command),
-           let chars = event.charactersIgnoringModifiers?.lowercased() {
-            if chars == "z" {
-                if event.modifierFlags.contains(.shift) {
-                    undoManager?.redo()
-                } else {
-                    undoManager?.undo()
-                }
-                return
-            }
-            if chars == "y" {
-                undoManager?.redo()
-                return
-            }
-        }
-        if event.keyCode == 53 {
-            onExitCommand?()
-            return
-        }
-        super.keyDown(with: event)
-    }
-}
 
 private struct SelectionTextOverlay: NSViewRepresentable {
     let attributedText: NSAttributedString

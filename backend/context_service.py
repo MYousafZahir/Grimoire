@@ -207,6 +207,13 @@ def _sentences_excerpt(text: str, max_sentences: int = 3, max_chars: int = 600) 
     return excerpt
 
 
+def _excerpt_key(text: str) -> str:
+    """Normalize excerpts for de-duplication in the UI selection step."""
+    text = text.strip().lower()
+    text = re.sub(r"\s+", " ", text)
+    return text[:400]
+
+
 class _SparseTokenizer:
     @staticmethod
     def tokenize(text: str) -> List[str]:
@@ -1451,6 +1458,7 @@ class ContextService:
         selected_vecs: List[np.ndarray] = []
         remaining = scored
         covered_gaps: Set[str] = set()
+        seen_excerpt_keys: Set[str] = set()
 
         while remaining and len(selected) < request.limit:
             best_idx = 0
@@ -1490,10 +1498,18 @@ class ContextService:
             # then normalize across the final selected set.
             raw_score = float(debug.get("combined", base))
 
+            excerpt = _sentences_excerpt(meta.get("text") or "")
+            ex_key = _excerpt_key(excerpt)
+            # Avoid showing multiple identical excerpts (often from short headings/boilerplate).
+            if ex_key and ex_key in seen_excerpt_keys:
+                continue
+            if ex_key:
+                seen_excerpt_keys.add(ex_key)
+
             snippet = ContextSnippetPayload(
                 note_id=meta["note_id"],
                 chunk_id=meta["chunk_id"],
-                text=_sentences_excerpt(meta.get("text") or ""),
+                text=excerpt,
                 # Display score should reflect "how good" the item is for this cursor context,
                 # without normalizing relative to the other returned items.
                 score=float(
