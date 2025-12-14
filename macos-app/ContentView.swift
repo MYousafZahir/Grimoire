@@ -69,6 +69,14 @@ struct ContentView: View {
         .task {
             await boot()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .grimoireCreateProjectRequested)) { notification in
+            guard let name = notification.userInfo?["name"] as? String else { return }
+            Task { await createProjectAndEnterApp(name: name) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .grimoireOpenProjectRequested)) { notification in
+            guard let path = notification.userInfo?["path"] as? String else { return }
+            Task { await openProjectAndEnterApp(path: path) }
+        }
         .onChange(of: noteStore.currentProject?.path) { newPath in
             guard let newPath else { return }
             if bootPhase == .selectProject || bootPhase == .ready {
@@ -163,6 +171,7 @@ struct ContentView: View {
     }
 
     private func createProjectAndEnterApp(name: String) async {
+        backlinksStore.clear()
         bootPhase = .booting("Creating project...")
         await noteStore.createProject(name: name)
         guard let path = noteStore.currentProject?.path else {
@@ -173,6 +182,7 @@ struct ContentView: View {
     }
 
     private func openProjectAndEnterApp(path: String) async {
+        backlinksStore.clear()
         bootPhase = .booting("Opening project...")
         await noteStore.openProject(path: path)
         guard let currentPath = noteStore.currentProject?.path else {
@@ -193,6 +203,10 @@ struct ContentView: View {
                 UserDefaults.standard.set(semanticIndexRequiredVersion, forKey: key)
             }
             bootPhase = .ready
+            #if os(macOS)
+            // SwiftUI can rebuild the menu when switching screens; ensure File menu items persist.
+            ProjectMenuInstaller.installOnce()
+            #endif
         } catch {
             if isCancellation(error) { return }
             bootPhase = .failed((error as? LocalizedError)?.errorDescription ?? String(describing: error))

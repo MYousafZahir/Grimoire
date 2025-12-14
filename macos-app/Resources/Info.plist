@@ -24,7 +24,5 @@
 	<string>Copyright © 2024 Grimoire. All rights reserved.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>NSMainStoryboardFile</key>
-	<string>Main</string>
 </dict>
 </plist>
