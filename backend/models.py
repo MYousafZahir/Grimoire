@@ -155,3 +155,34 @@ class CreateProjectRequest(BaseModel):
 class OpenProjectRequest(BaseModel):
     name: Optional[str] = None
     path: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Glossary payloads
+# ---------------------------------------------------------------------------
+
+
+class GlossaryTermPayload(BaseModel):
+    concept_id: str
+    display_name: str
+    kind: str
+    chunk_count: int
+    definition_excerpt: str = ""
+    source_note_id: Optional[str] = None
+    last_updated: float = 0.0
+
+
+class GlossaryResponsePayload(BaseModel):
+    terms: List[GlossaryTermPayload] = Field(default_factory=list)
+
+
+class GlossaryTermDetailPayload(BaseModel):
+    concept_id: str
+    display_name: str
+    kind: str
+    chunk_count: int
+    surface_forms: List[str] = Field(default_factory=list)
+    definition_excerpt: str = ""
+    definition_chunk_id: Optional[str] = None
+    source_note_id: Optional[str] = None
+    supporting: List[dict] = Field(default_factory=list)

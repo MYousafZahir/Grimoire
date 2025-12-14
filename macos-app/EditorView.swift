@@ -19,6 +19,8 @@ struct EditorView: View {
     @State private var cursorOffsetInCleanedText: Int = 0
     @State private var lastActiveChunkForBacklinks: UUID? = nil
     @State private var chunkHeights: [UUID: CGFloat] = [:]
+    @State private var highlightedChunkId: UUID? = nil
+    @State private var contentNoteId: String? = nil
 
     private var isFolderSelected: Bool {
         guard let selectedNoteId else { return false }
@@ -92,6 +94,7 @@ struct EditorView: View {
                                 ChunkRow(
                                     chunk: chunk,
                                     isActive: chunk.id == activeChunkId,
+                                    isHighlighted: chunk.id == highlightedChunkId,
                                     shouldFocus: chunk.id == activeChunkId,
                                     showEmptyPlaceholder: isOnlyEmptyChunk,
                                     measuredHeight: heightBinding(for: chunk.id),
@@ -187,6 +190,14 @@ struct EditorView: View {
             backlinksStore.clear()
             syncFromStore()
         }
+        .onChange(of: noteStore.pendingReveal?.id) { _ in
+            applyPendingRevealIfPossible()
+        }
+        .onChange(of: noteStore.isLoadingNote) { isLoading in
+            if !isLoading {
+                applyPendingRevealIfPossible()
+            }
+        }
         .onChange(of: noteStore.currentContent) { _ in
             syncFromStore()
         }
@@ -200,12 +211,15 @@ struct EditorView: View {
         let incoming = noteStore.currentContent
         guard incoming != noteContent else { return }
         noteContent = incoming
+        contentNoteId = selectedNoteId
         chunks = makeChunks(from: incoming)
         activeChunkId = nil
         focusedChunkId = nil
         pendingCursorPlacement = nil
         cursorOffsetInCleanedText = 0
+        highlightedChunkId = nil
         selectionOverlayModel = buildSelectionOverlayModel(from: chunks)
+        applyPendingRevealIfPossible()
 
         if let noteId = selectedNoteId, noteStore.currentNoteKind == .note {
             let cleaned = stripChunkMarkers(incoming)
@@ -216,6 +230,97 @@ struct EditorView: View {
                 titleProvider: { noteStore.title(for: $0) }
             )
         }
+    }
+
+    private func applyPendingRevealIfPossible() {
+        guard let request = noteStore.pendingReveal else { return }
+        guard request.noteId == selectedNoteId else { return }
+        // Wait until the newly-selected note has finished loading; during the loading window,
+        // `selectedNoteId` may already be the new note while `currentContent` is still the old note.
+        guard noteStore.loadedNoteId == request.noteId else { return }
+        // Ensure our local `chunks`/`noteContent` match the same note before attempting to resolve
+        // offsets/chunk ids. Otherwise this can apply the reveal to the previous note's chunks and
+        // then get wiped by `syncFromStore`, requiring a second click.
+        guard contentNoteId == request.noteId else { return }
+        guard noteStore.currentNoteKind == .note else { return }
+        guard !chunks.isEmpty else { return }
+
+        let targetChunkId = resolveTargetChunkId(for: request)
+        guard let targetChunkId else { return }
+        noteStore.clearReveal(requestId: request.id)
+        // Move into chunk-editing view (so we can scroll precisely), then highlight until the
+        // user clicks away to a different chunk.
+        activateChunk(targetChunkId)
+        withAnimation(.easeInOut(duration: 0.12)) {
+            highlightedChunkId = targetChunkId
+        }
+    }
+
+    private func clearHighlight() {
+        highlightedChunkId = nil
+    }
+
+    private func resolveTargetChunkId(for request: NoteRevealRequest) -> UUID? {
+        if let contextChunkId = request.contextChunkId,
+           let parsed = parseContextChunkId(contextChunkId) {
+            // Offsets are measured against the backend's "cleaned" note text
+            // (chunk markers removed, separators replaced with blank lines).
+            let start = parsed.start
+            let end = max(parsed.end, start)
+            if let match = chunkIdOverlappingCleanRange(start: start, end: end) {
+                return match
+            }
+        }
+
+        // Fallback: try matching excerpt text to a chunk.
+        if let excerpt = request.excerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !excerpt.isEmpty {
+            let probe = String(excerpt.prefix(120))
+            if let chunk = chunks.first(where: { $0.text.localizedCaseInsensitiveContains(probe) }) {
+                return chunk.id
+            }
+        }
+        return nil
+    }
+
+    private func parseContextChunkId(_ chunkId: String) -> (noteId: String, start: Int, end: Int, idx: Int?)? {
+        let parts = chunkId.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count >= 4 else { return nil }
+        let startPart = parts[parts.count - 3]
+        let endPart = parts[parts.count - 2]
+        let idxPart = parts[parts.count - 1]
+        guard let start = Int(startPart), let end = Int(endPart) else { return nil }
+        let noteId = parts[..<(parts.count - 3)].joined(separator: ":")
+        let idx = Int(idxPart)
+        return (noteId: noteId, start: start, end: end, idx: idx)
+    }
+
+    private func chunkIdOverlappingCleanRange(start: Int, end: Int) -> UUID? {
+        let separatorCount = "\n\n".unicodeScalars.count
+        var cursor = 0
+        var best: (id: UUID, overlap: Int)? = nil
+
+        for (i, chunk) in chunks.enumerated() {
+            let chunkStart = cursor
+            let chunkEnd = cursor + chunk.text.unicodeScalars.count
+            let overlap = max(0, min(chunkEnd, end) - max(chunkStart, start))
+            if overlap > 0 {
+                if best == nil || overlap > best!.overlap {
+                    best = (id: chunk.id, overlap: overlap)
+                }
+            } else if start >= chunkStart && start <= chunkEnd {
+                // Touching range or empty chunk: treat as a weak match.
+                if best == nil {
+                    best = (id: chunk.id, overlap: 0)
+                }
+            }
+
+            cursor = chunkEnd
+            if i != (chunks.count - 1) {
+                cursor += separatorCount
+            }
+        }
+        return best?.id
     }
 
     private func handleTextChange(_ newText: String, noteId: String) {
@@ -238,6 +343,9 @@ struct EditorView: View {
     }
 
     private func activateChunk(_ id: UUID) {
+        if let highlightedChunkId, highlightedChunkId != id {
+            clearHighlight()
+        }
         if activeChunkId != id {
             backlinksStore.beginLoading(clearResults: true)
         }
@@ -703,6 +811,7 @@ struct EditorView: View {
     private func clearChunkSelection() {
         activeChunkId = nil
         focusedChunkId = nil
+        clearHighlight()
         compactEmptyChunksIfNeeded()
         pendingCursorPlacement = nil
         selectionOverlayModel = buildSelectionOverlayModel(from: chunks)
@@ -880,6 +989,7 @@ private struct EditorChunk: Identifiable, Equatable {
 private struct ChunkRow: View {
     let chunk: EditorChunk
     let isActive: Bool
+    let isHighlighted: Bool
     let shouldFocus: Bool
     let showEmptyPlaceholder: Bool
     let measuredHeight: Binding<CGFloat>
@@ -956,6 +1066,22 @@ private struct ChunkRow: View {
             }
         }
         .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHighlighted ? Color.accentColor.opacity(0.22) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isHighlighted ? Color.accentColor.opacity(0.80) : Color.clear, lineWidth: 2)
+        )
+        .animation(.easeInOut(duration: 0.15), value: isHighlighted)
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isHighlighted ? Color.accentColor : Color.clear)
+                .frame(width: 4)
+                .padding(.vertical, 6)
+                .padding(.leading, 2)
+        }
         .simultaneousGesture(
             TapGesture().onEnded {
                 if !isActive { onActivate() }

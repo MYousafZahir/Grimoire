@@ -536,8 +536,17 @@ setup_macos_app() {
 
     # Check if Xcode project exists
     if [ -f "${MACOS_APP_DIR}/Grimoire.xcodeproj/project.pbxproj" ]; then
-        print_step "Xcode project already exists"
-        return 0
+        # Ensure the project includes all required Swift sources (cleanup/regeneration can
+        # leave the project in a partial state).
+        if grep -q "GlossaryView.swift" "${MACOS_APP_DIR}/Grimoire.xcodeproj/project.pbxproj" 2>/dev/null \
+            && grep -q "GlossaryRepository.swift" "${MACOS_APP_DIR}/Grimoire.xcodeproj/project.pbxproj" 2>/dev/null \
+            && grep -q "GlossaryStore.swift" "${MACOS_APP_DIR}/Grimoire.xcodeproj/project.pbxproj" 2>/dev/null; then
+            print_step "Xcode project already exists"
+            return 0
+        fi
+
+        print_warning "Xcode project is missing glossary sources; regenerating..."
+        rm -rf "${MACOS_APP_DIR}/Grimoire.xcodeproj" 2>/dev/null || true
     fi
 
     # Check if we have the create_xcode_project.sh script

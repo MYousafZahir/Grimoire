@@ -17,6 +17,7 @@ final class NoteStore: ObservableObject {
 
     @Published var tree: [NoteNode] = []
     @Published var selection: String? = nil
+    @Published var loadedNoteId: String? = nil
     @Published var currentContent: String = ""
     @Published var currentNoteKind: NoteKind? = nil
     @Published var saveState: SaveState = .idle
@@ -26,6 +27,7 @@ final class NoteStore: ObservableObject {
     @Published var lastError: String? = nil
     @Published var currentProject: ProjectInfo? = nil
     @Published var availableProjects: [ProjectInfo] = []
+    @Published var pendingReveal: NoteRevealRequest? = nil
 
     private let repository: NoteRepository
     private var lastSavedContent: String = ""
@@ -37,6 +39,16 @@ final class NoteStore: ObservableObject {
 
     init(repository: NoteRepository = HTTPNoteRepository()) {
         self.repository = repository
+    }
+
+    func requestReveal(noteId: String, contextChunkId: String? = nil, excerpt: String? = nil) {
+        pendingReveal = NoteRevealRequest(noteId: noteId, contextChunkId: contextChunkId, excerpt: excerpt)
+    }
+
+    func clearReveal(requestId: UUID) {
+        if pendingReveal?.id == requestId {
+            pendingReveal = nil
+        }
     }
 
     func bootstrap() async {
@@ -174,8 +186,10 @@ final class NoteStore: ObservableObject {
             currentContent = ""
             lastSavedContent = ""
             currentNoteKind = nil
+            loadedNoteId = nil
             saveState = .idle
             lastError = nil
+            pendingReveal = nil
             return
         }
 
@@ -189,6 +203,7 @@ final class NoteStore: ObservableObject {
             currentContent = ""
             lastSavedContent = ""
             currentNoteKind = .folder
+            loadedNoteId = noteId
             saveState = .idle
             return
         }
@@ -201,6 +216,7 @@ final class NoteStore: ObservableObject {
             currentContent = document.content
             lastSavedContent = document.content
             currentNoteKind = document.kind
+            loadedNoteId = noteId
             saveState = .idle
             lastError = nil
         } catch {
@@ -215,6 +231,7 @@ final class NoteStore: ObservableObject {
             currentContent = ""
             lastSavedContent = ""
             currentNoteKind = .note
+            loadedNoteId = nil
             saveState = .failed(error.localizedDescription)
         }
     }
@@ -387,6 +404,13 @@ final class NoteStore: ObservableObject {
         lastError = nil
         saveState = .idle
     }
+}
+
+struct NoteRevealRequest: Identifiable, Equatable {
+    let id: UUID = UUID()
+    let noteId: String
+    let contextChunkId: String?
+    let excerpt: String?
 }
 
 // MARK: - Helpers

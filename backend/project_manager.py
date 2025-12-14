@@ -33,6 +33,10 @@ class ProjectInfo:
     def context_dir(self) -> Path:
         return self.root / "context"
 
+    @property
+    def glossary_dir(self) -> Path:
+        return self.root / "glossary"
+
 
 class ProjectManager:
     """Creates, lists, and switches between local `.grim` projects."""
@@ -110,6 +114,7 @@ class ProjectManager:
         project.notes_dir.mkdir(parents=True, exist_ok=True)
         project.search_dir.mkdir(parents=True, exist_ok=True)
         project.context_dir.mkdir(parents=True, exist_ok=True)
+        project.glossary_dir.mkdir(parents=True, exist_ok=True)
         return project
 
     def _sanitize_project_name(self, name: str) -> str:

@@ -8,6 +8,7 @@ from typing import Iterable, List
 from chunker import Chunker
 from context_models import ContextRequest
 from context_service import ContextService
+from glossary_service import GlossaryService
 from embedder import Embedder
 from indexer import Indexer
 from models import (
@@ -132,10 +133,12 @@ class NoteService:
         storage: NoteStorage | None = None,
         search: SearchService | None = None,
         context: ContextService | None = None,
+        glossary: GlossaryService | None = None,
     ):
         self.storage = storage or NoteStorage()
         self.search = search or SearchService()
         self.context = context or ContextService()
+        self.glossary = glossary
 
     def tree(self) -> NotesResponsePayload:
         return self.storage.get_tree()
@@ -150,6 +153,8 @@ class NoteService:
         )
         self.search.index_note(record)
         self.context.index_note(record)
+        if self.glossary is not None:
+            self.glossary.update_for_note(record.id)
         return record
 
     def create_note(self, request: CreateNoteRequest) -> NoteRecord:
@@ -164,6 +169,8 @@ class NoteService:
             self.storage._write_record(record)
         self.search.index_note(record)
         self.context.index_note(record)
+        if self.glossary is not None:
+            self.glossary.update_for_note(record.id)
         return record
 
     def create_folder(self, request: CreateFolderRequest) -> NoteRecord:
@@ -174,6 +181,8 @@ class NoteService:
         deleted_ids = self.storage.delete_item(note_id)
         self.search.delete_notes(deleted_ids)
         self.context.delete_notes(deleted_ids)
+        if self.glossary is not None:
+            self.glossary.delete_notes(deleted_ids)
         return deleted_ids
 
     def rename_item(self, old_id: str, new_id: str) -> str:
@@ -181,6 +190,8 @@ class NoteService:
         records = self.storage.list_records()
         self.search.rebuild(records.values())
         self.context.rebuild(records.values())
+        if self.glossary is not None:
+            self.glossary.rebuild()
         return new_root
 
     def move_item(self, note_id: str, parent_id: str | None) -> NoteRecord:
@@ -191,6 +202,8 @@ class NoteService:
     def rebuild_index(self) -> int:
         records = self.storage.list_records()
         self.context.rebuild(records.values())
+        if self.glossary is not None:
+            self.glossary.rebuild()
         return self.search.rebuild(records.values())
 
     def semantic_context(self, request: ContextRequest):

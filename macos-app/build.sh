@@ -27,6 +27,13 @@ fi
 if [ ! -f "Grimoire.xcodeproj/project.pbxproj" ]; then
     echo -e "${YELLOW}⚠ Xcode project not found. Creating project...${NC}"
     ./create_xcode_project.sh
+else
+    # If a regenerated project is missing newer files (e.g. glossary), rebuild it.
+    if ! grep -q "GlossaryView.swift" "Grimoire.xcodeproj/project.pbxproj" 2>/dev/null; then
+        echo -e "${YELLOW}⚠ Xcode project is missing glossary sources. Regenerating project...${NC}"
+        rm -rf "Grimoire.xcodeproj" 2>/dev/null || true
+        ./create_xcode_project.sh
+    fi
 fi
 
 # Clean previous builds (preserve Swift Package checkouts to avoid re-downloading)

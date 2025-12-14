@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from context_service import ContextIndex, ContextService
+from glossary_service import GlossaryService
 from indexer import Indexer
 from project_manager import ProjectInfo, ProjectManager
 from services import NoteService, SearchService
@@ -20,6 +21,7 @@ class ProjectServices:
     storage: NoteStorage
     search: SearchService
     context: ContextService
+    glossary: GlossaryService
     notes: NoteService
 
 
@@ -68,12 +70,20 @@ class GrimoireAppState:
         )
         context = ContextService(index=context_index)
 
-        notes = NoteService(storage=storage, search=search, context=context)
+        glossary = GlossaryService(
+            path=(project.glossary_dir / "glossary.json").resolve(),
+            index=context_index,
+            embedder=context.embedder,
+            reranker=context.reranker,
+        )
+
+        notes = NoteService(storage=storage, search=search, context=context, glossary=glossary)
 
         self._services = ProjectServices(
             project=project,
             storage=storage,
             search=search,
             context=context,
+            glossary=glossary,
             notes=notes,
         )

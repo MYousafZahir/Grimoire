@@ -945,6 +945,29 @@ class ContextIndex:
     def chunk_count(self) -> int:
         return len(self._chunk)
 
+    def chunk_ids(self) -> List[str]:
+        return sorted(self._chunk.keys())
+
+    def note_ids(self) -> List[str]:
+        out: Set[str] = set()
+        for meta in self._chunk.values():
+            nid = str(meta.get("note_id") or "")
+            if nid:
+                out.add(nid)
+        return sorted(out)
+
+    def chunks_for_note(self, note_id: str) -> List[Dict]:
+        nid = str(note_id or "")
+        if not nid:
+            return []
+        chunks: List[Dict] = []
+        for meta in self._chunk.values():
+            if str(meta.get("note_id") or "") == nid:
+                chunks.append(meta)
+        # stable order by chunk_id
+        chunks.sort(key=lambda m: str(m.get("chunk_id") or ""))
+        return chunks
+
     def prefix_embedding(self, note_id: str, block_index: int) -> Optional[np.ndarray]:
         """Incremental prefix embedding e(P) without re-encoding full prefix.
 

@@ -62,11 +62,11 @@ struct BacklinksView: View {
             } else {
                 List(selection: $selectedResultId) {
                     ForEach(backlinksStore.results, id: \.id) { result in
-                        BacklinkRow(result: result, selectedNoteId: $selectedNoteId)
+                        BacklinkRow(result: result, onReveal: reveal, selectedNoteId: $selectedNoteId)
                             .tag(result.id)
                             .contextMenu {
                                 Button("Open Note") {
-                                    openNote(result.noteId)
+                                    reveal(result)
                                 }
 
                                 Button("Copy Excerpt") {
@@ -123,8 +123,9 @@ struct BacklinksView: View {
         backlinksStore.refresh { noteStore.title(for: $0) }
     }
 
-    private func openNote(_ noteId: String) {
-        selectedNoteId = noteId
+    private func reveal(_ result: Backlink) {
+        selectedNoteId = result.noteId
+        noteStore.requestReveal(noteId: result.noteId, contextChunkId: result.chunkId, excerpt: result.excerpt)
     }
 
     private func copyToClipboard(_ text: String) {
@@ -139,6 +140,7 @@ struct BacklinksView: View {
 
 struct BacklinkRow: View {
     let result: Backlink
+    let onReveal: (Backlink) -> Void
     @Binding var selectedNoteId: String?
 
     var body: some View {
@@ -189,7 +191,7 @@ struct BacklinkRow: View {
                 Spacer()
 
                 Button("Open") {
-                    selectedNoteId = result.noteId
+                    onReveal(result)
                 }
                 .buttonStyle(.link)
                 .font(.caption)
@@ -209,7 +211,7 @@ struct BacklinkRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .onTapGesture {
-            selectedNoteId = result.noteId
+            onReveal(result)
         }
     }
 

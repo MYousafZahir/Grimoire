@@ -191,39 +191,45 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 	objectVersion = 55;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		GRIM_APP_BUILD /* GrimoireApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_APP /* GrimoireApp.swift */; };
-		GRIM_CONTENT_BUILD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_CONTENT /* ContentView.swift */; };
-		GRIM_SIDEBAR_BUILD /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_SIDEBAR /* SidebarView.swift */; };
-		GRIM_EDITOR_BUILD /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_EDITOR /* EditorView.swift */; };
-		GRIM_BACKLINKS_BUILD /* BacklinksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_BACKLINKS /* BacklinksView.swift */; };
-		GRIM_SETTINGS_BUILD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_SETTINGS /* SettingsView.swift */; };
-		GRIM_DEBUG_BUILD /* DebugTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DEBUG /* DebugTools.swift */; };
-		GRIM_DOMAIN_MODELS_BUILD /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DOMAIN_MODELS /* Models.swift */; };
-		GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_NOTE_REPO /* NoteRepository.swift */; };
-		GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */; };
-			GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_NOTE /* NoteStore.swift */; };
-			GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_BACKLINK /* BacklinksStore.swift */; };
-			GRIM_INFOPLIST_BUILD /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = GRIM_INFOPLIST /* Info.plist */; };
-			GRIM_MARKDOWNUI_BUILD /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = GRIM_MARKDOWNUI_PROD /* MarkdownUI */; };
-	/* End PBXBuildFile section */
+	/* Begin PBXBuildFile section */
+			GRIM_APP_BUILD /* GrimoireApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_APP /* GrimoireApp.swift */; };
+			GRIM_CONTENT_BUILD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_CONTENT /* ContentView.swift */; };
+			GRIM_SIDEBAR_BUILD /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_SIDEBAR /* SidebarView.swift */; };
+			GRIM_EDITOR_BUILD /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_EDITOR /* EditorView.swift */; };
+			GRIM_BACKLINKS_BUILD /* BacklinksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_BACKLINKS /* BacklinksView.swift */; };
+			GRIM_GLOSSARY_VIEW_BUILD /* GlossaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_GLOSSARY_VIEW /* GlossaryView.swift */; };
+			GRIM_SETTINGS_BUILD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_SETTINGS /* SettingsView.swift */; };
+			GRIM_DEBUG_BUILD /* DebugTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DEBUG /* DebugTools.swift */; };
+			GRIM_DOMAIN_MODELS_BUILD /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DOMAIN_MODELS /* Models.swift */; };
+			GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_NOTE_REPO /* NoteRepository.swift */; };
+			GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */; };
+			GRIM_DATA_GLOSSARY_REPO_BUILD /* GlossaryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_GLOSSARY_REPO /* GlossaryRepository.swift */; };
+				GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_NOTE /* NoteStore.swift */; };
+				GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_BACKLINK /* BacklinksStore.swift */; };
+				GRIM_STORE_GLOSSARY_BUILD /* GlossaryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_GLOSSARY /* GlossaryStore.swift */; };
+				GRIM_INFOPLIST_BUILD /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = GRIM_INFOPLIST /* Info.plist */; };
+				GRIM_MARKDOWNUI_BUILD /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = GRIM_MARKDOWNUI_PROD /* MarkdownUI */; };
+		/* End PBXBuildFile section */
 
-/* Begin PBXFileReference section */
-		GRIM_APP /* GrimoireApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireApp.swift; sourceTree = "<group>"; };
-		GRIM_CONTENT /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		GRIM_SIDEBAR /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
-		GRIM_EDITOR /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
-		GRIM_BACKLINKS /* BacklinksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklinksView.swift; sourceTree = "<group>"; };
-		GRIM_SETTINGS /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		GRIM_DEBUG /* DebugTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugTools.swift; sourceTree = "<group>"; };
-		GRIM_DOMAIN_MODELS /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		GRIM_DATA_NOTE_REPO /* NoteRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteRepository.swift; sourceTree = "<group>"; };
-		GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepository.swift; sourceTree = "<group>"; };
-		GRIM_STORE_NOTE /* NoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStore.swift; sourceTree = "<group>"; };
-		GRIM_STORE_BACKLINK /* BacklinksStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklinksStore.swift; sourceTree = "<group>"; };
-		GRIM_INFOPLIST /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		GRIM_PRODUCT /* Grimoire.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Grimoire.app; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
+	/* Begin PBXFileReference section */
+			GRIM_APP /* GrimoireApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireApp.swift; sourceTree = "<group>"; };
+			GRIM_CONTENT /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+			GRIM_SIDEBAR /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+			GRIM_EDITOR /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+			GRIM_BACKLINKS /* BacklinksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklinksView.swift; sourceTree = "<group>"; };
+			GRIM_GLOSSARY_VIEW /* GlossaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossaryView.swift; sourceTree = "<group>"; };
+			GRIM_SETTINGS /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+			GRIM_DEBUG /* DebugTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugTools.swift; sourceTree = "<group>"; };
+			GRIM_DOMAIN_MODELS /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+			GRIM_DATA_NOTE_REPO /* NoteRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteRepository.swift; sourceTree = "<group>"; };
+			GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepository.swift; sourceTree = "<group>"; };
+			GRIM_DATA_GLOSSARY_REPO /* GlossaryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossaryRepository.swift; sourceTree = "<group>"; };
+			GRIM_STORE_NOTE /* NoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStore.swift; sourceTree = "<group>"; };
+			GRIM_STORE_BACKLINK /* BacklinksStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklinksStore.swift; sourceTree = "<group>"; };
+			GRIM_STORE_GLOSSARY /* GlossaryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossaryStore.swift; sourceTree = "<group>"; };
+			GRIM_INFOPLIST /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+			GRIM_PRODUCT /* Grimoire.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Grimoire.app; sourceTree = BUILT_PRODUCTS_DIR; };
+	/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 			GRIM_FRAMEWORKS /* Frameworks */ = {
@@ -259,17 +265,18 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 			name = Sources;
 			sourceTree = "<group>";
 		};
-		GRIM_VIEWS_GROUP = {
-			isa = PBXGroup;
-			children = (
-				GRIM_CONTENT,
-				GRIM_SIDEBAR,
-				GRIM_EDITOR,
-				GRIM_BACKLINKS,
-				GRIM_SETTINGS,
-			);
-			name = Views;
-			path = "";
+			GRIM_VIEWS_GROUP = {
+				isa = PBXGroup;
+				children = (
+					GRIM_CONTENT,
+					GRIM_SIDEBAR,
+					GRIM_EDITOR,
+					GRIM_BACKLINKS,
+					GRIM_GLOSSARY_VIEW,
+					GRIM_SETTINGS,
+				);
+				name = Views;
+				path = "";
 			sourceTree = "<group>";
 		};
 		GRIM_GROUP_DOMAIN = {
@@ -281,25 +288,27 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 			path = Domain;
 			sourceTree = "<group>";
 		};
-		GRIM_GROUP_DATA = {
-			isa = PBXGroup;
-			children = (
-				GRIM_DATA_NOTE_REPO,
-				GRIM_DATA_SEARCH_REPO,
-			);
-			name = Data;
-			path = Data;
-			sourceTree = "<group>";
+			GRIM_GROUP_DATA = {
+				isa = PBXGroup;
+				children = (
+					GRIM_DATA_NOTE_REPO,
+					GRIM_DATA_SEARCH_REPO,
+					GRIM_DATA_GLOSSARY_REPO,
+				);
+				name = Data;
+				path = Data;
+				sourceTree = "<group>";
 		};
-		GRIM_GROUP_STORES = {
-			isa = PBXGroup;
-			children = (
-				GRIM_STORE_NOTE,
-				GRIM_STORE_BACKLINK,
-			);
-			name = Stores;
-			path = Stores;
-			sourceTree = "<group>";
+			GRIM_GROUP_STORES = {
+				isa = PBXGroup;
+				children = (
+					GRIM_STORE_NOTE,
+					GRIM_STORE_BACKLINK,
+					GRIM_STORE_GLOSSARY,
+				);
+				name = Stores;
+				path = Stores;
+				sourceTree = "<group>";
 		};
 		GRIM_GROUP_RESOURCES = {
 			isa = PBXGroup;
@@ -407,27 +416,30 @@ cat > "$PBXPROJ_FILE" << 'EOF'
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXSourcesBuildPhase section */
-		GRIM_SOURCES_PHASE /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				GRIM_APP_BUILD /* GrimoireApp.swift in Sources */,
-				GRIM_CONTENT_BUILD /* ContentView.swift in Sources */,
-				GRIM_SIDEBAR_BUILD /* SidebarView.swift in Sources */,
-				GRIM_EDITOR_BUILD /* EditorView.swift in Sources */,
-				GRIM_BACKLINKS_BUILD /* BacklinksView.swift in Sources */,
-				GRIM_SETTINGS_BUILD /* SettingsView.swift in Sources */,
-				GRIM_DEBUG_BUILD /* DebugTools.swift in Sources */,
-				GRIM_DOMAIN_MODELS_BUILD /* Models.swift in Sources */,
-				GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */,
-				GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */,
-				GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */,
-				GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXSourcesBuildPhase section */
+	/* Begin PBXSourcesBuildPhase section */
+			GRIM_SOURCES_PHASE /* Sources */ = {
+				isa = PBXSourcesBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					GRIM_APP_BUILD /* GrimoireApp.swift in Sources */,
+					GRIM_CONTENT_BUILD /* ContentView.swift in Sources */,
+					GRIM_SIDEBAR_BUILD /* SidebarView.swift in Sources */,
+					GRIM_EDITOR_BUILD /* EditorView.swift in Sources */,
+					GRIM_BACKLINKS_BUILD /* BacklinksView.swift in Sources */,
+					GRIM_GLOSSARY_VIEW_BUILD /* GlossaryView.swift in Sources */,
+					GRIM_SETTINGS_BUILD /* SettingsView.swift in Sources */,
+					GRIM_DEBUG_BUILD /* DebugTools.swift in Sources */,
+					GRIM_DOMAIN_MODELS_BUILD /* Models.swift in Sources */,
+					GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */,
+					GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */,
+					GRIM_DATA_GLOSSARY_REPO_BUILD /* GlossaryRepository.swift in Sources */,
+					GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */,
+					GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */,
+					GRIM_STORE_GLOSSARY_BUILD /* GlossaryStore.swift in Sources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
+	/* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		GRIM_CONFIG_DEBUG /* Debug */ = {

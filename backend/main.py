@@ -13,6 +13,8 @@ from models import (
     CreateNoteRequest,
     CreateProjectRequest,
     DeleteNoteRequest,
+    GlossaryResponsePayload,
+    GlossaryTermDetailPayload,
     NoteContentPayload,
     NotesResponsePayload,
     MoveItemRequest,
@@ -121,6 +123,60 @@ async def notes():
     try:
         return state.current().notes.tree()
     except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/glossary", response_model=GlossaryResponsePayload, tags=["glossary"])
+async def glossary():
+    try:
+        services = state.current()
+        services.glossary.ensure_built()
+        terms = []
+        for entry in services.glossary.list_entries():
+            terms.append(
+                {
+                    "concept_id": entry.concept_id,
+                    "display_name": entry.display_name,
+                    "kind": entry.kind,
+                    "chunk_count": int(len(entry.chunk_ids)),
+                    "definition_excerpt": entry.definition_excerpt,
+                    "source_note_id": entry.source_note_id,
+                    "last_updated": float(entry.last_updated),
+                }
+            )
+        return GlossaryResponsePayload(terms=terms)
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/glossary/{concept_id}", response_model=GlossaryTermDetailPayload, tags=["glossary"])
+async def glossary_term(concept_id: str):
+    try:
+        services = state.current()
+        services.glossary.ensure_built()
+        entry = services.glossary.entry(concept_id)
+        if entry is None:
+            raise HTTPException(status_code=404, detail="Term not found")
+        supporting = [
+            {"chunk_id": cid, "note_id": nid, "excerpt": ex}
+            for (cid, nid, ex) in (entry.supporting or [])
+        ]
+        return GlossaryTermDetailPayload(
+            concept_id=entry.concept_id,
+            display_name=entry.display_name,
+            kind=entry.kind,
+            chunk_count=int(len(entry.chunk_ids)),
+            surface_forms=entry.surface_forms,
+            definition_excerpt=entry.definition_excerpt,
+            definition_chunk_id=entry.definition_chunk_id,
+            source_note_id=entry.source_note_id,
+            supporting=supporting,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
 
 

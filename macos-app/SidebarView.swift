@@ -21,6 +21,7 @@ struct SidebarView: View {
 		    @State private var isShowingBatchRenameAlert: Bool = false
 		    @State private var batchRenameBaseName: String = ""
 		    @State private var isShowingKeybindLegend: Bool = false
+		    @State private var isShowingGlossary: Bool = false
 	    
 	    private struct VisibleNode: Identifiable {
 	        let id: String
@@ -149,6 +150,13 @@ struct SidebarView: View {
 
 			    private var keybindFooter: some View {
 			        HStack {
+			            Button(action: { isShowingGlossary = true }) {
+			                Image(systemName: "text.book.closed")
+			                    .foregroundColor(.secondary)
+			            }
+			            .buttonStyle(.plain)
+			            .help("Glossary")
+
 			            Spacer()
 			            Button(action: { isShowingKeybindLegend = true }) {
 			                Image(systemName: "keyboard")
@@ -282,6 +290,10 @@ struct SidebarView: View {
 			            }
 			            .sheet(isPresented: $isShowingKeybindLegend) {
 			                KeybindLegendView()
+			            }
+			            .sheet(isPresented: $isShowingGlossary) {
+			                GlossaryView(selectedNoteId: $selectedNoteId)
+			                    .environmentObject(noteStore)
 			            }
 			    }
 
