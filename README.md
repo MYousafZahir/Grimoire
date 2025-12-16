@@ -314,4 +314,3 @@ If you see dependency errors (especially `faiss-cpu`):
 > **Note for previous users**: If you had issues, run `./cleanup.sh` first to get the updated dependencies.
 ```
 
-Now let me create a simple test to verify the launcher works. First, let me check if there are any syntax issues in the launcher script:
