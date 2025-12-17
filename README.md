@@ -1,12 +1,18 @@
-# Grimoire - Semantic macOS Notes App
+# Grimoire — Local-First Semantic macOS Notes App
 
-> **⚠️ IMPORTANT FIX**: If you had issues with dependencies, run `./cleanup.sh` first, then `./grimoire`
+A local-first macOS notes app with:
 
-A macOS desktop note editor with nested hierarchy, markdown editing, and automatic real-time semantic backlinks.
+- `.grim` projects (each project has its own notes + indexes)
+- nested folders + notes (drag/drop restructuring)
+- chunk-based Markdown editor (renders everything except the chunk you’re editing)
+- cursor-conditioned “semantic backlinks” sidebar (verbatim snippets, no generation)
+- automated glossary (People / Places / Things) built only from your notes (verbatim definitions)
 
-## ✨ One-Command Setup & Launch
+If you run into build/dependency issues: `./cleanup.sh` then `./grimoire` (or `./.rebuild.sh` for a faster cached rebuild).
 
-Grimoire now includes a comprehensive launcher script that handles everything for you. **If you previously had dependency issues, run `./cleanup.sh` first to start fresh.**
+## ✨ One-Command Setup & Launch (Recommended)
+
+The launcher handles backend setup + app build/launch.
 
 ```bash
 # Make the launcher executable
@@ -16,21 +22,18 @@ chmod +x grimoire
 ./grimoire
 ```
 
-That's it! The launcher will (after cleanup if needed):
-1. ✅ Check system requirements (Python 3.11+, macOS 13+)
-2. ✅ Set up Python virtual environment
-3. ✅ Install all dependencies (FastAPI, sentence-transformers, FAISS, etc.)
-4. ✅ Download the semantic model (if needed)
-5. ✅ Create sample notes
-6. ✅ Start the backend server
-7. ✅ Build and launch the macOS app
-8. ✅ Show you how to get started
+On launch you’ll land in **Project Selection** (create/open a `.grim` project, or open a recent project).
 
 ## 🚀 Quick Start
 
 ### Option 1: Full Automatic Setup (Recommended)
 ```bash
 ./grimoire
+```
+
+### Option 1b: Faster “clean rebuild” (cached)
+```bash
+./.rebuild.sh
 ```
 
 ### Option 2: Step-by-Step Setup
@@ -60,35 +63,35 @@ That's it! The launcher will (after cleanup if needed):
 ./grimoire help
 ```
 
-## 🎯 What Grimoire Does
+## 🎯 How It Works (At a Glance)
 
-Grimoire is an intelligent note-taking app that **automatically discovers connections** between your notes as you type:
-
-- **Semantic Backlinks**: Real-time discovery of related content across notes
-- **Excerpt-Level Linking**: Links to specific passages, not just whole notes
-- **Nested Hierarchy**: Organize notes in folders and subfolders
-- **Markdown Editing**: Full markdown support with live preview
-- **Local-Only**: All data stays on your machine
-- **Real-Time**: Backlinks update as you type
+- **macOS app (SwiftUI)**: UI, chunk editor, sidebar tree, backlinks + glossary panels
+- **backend (Python/FastAPI)**: project storage, indexing, retrieval, glossary building
+- **local-only models**:
+  - embeddings: `BAAI/bge-small-en-v1.5`
+  - reranker: `BAAI/bge-reranker-base` (optional)
+  - spaCy `en_core_web_sm` (optional; glossary has a fallback mode)
 
 ## 📁 Project Structure
 
 ```
 Grimoire/
 ├── grimoire                    # Main launcher script (run this!)
+├── .rebuild.sh                 # Fast cached rebuild helper (cleanup + launch)
+├── cleanup.sh                  # Reset build env (keeps projects/notes)
 ├── README.md                   # This file
 ├── SETUP.md                    # Detailed setup guide
 ├── PROJECT_SUMMARY.md          # Technical architecture
+├── technical specficiations/   # Detailed subsystem specs (see below)
 │
 ├── backend/                    # Python backend (semantic search)
 │   ├── main.py                 # FastAPI app + routes
-│   ├── models.py               # Shared API/domain models
-│   ├── services.py             # Note/search orchestration
-│   ├── storage.py              # Filesystem-backed note store
-│   ├── chunker.py              # Text chunking
-│   ├── embedder.py             # Embedding generation
-│   ├── indexer.py              # FAISS vector search
-│   └── storage/                # Local data storage
+│   ├── app_state.py            # Project-scoped service wiring
+│   ├── project_manager.py      # .grim projects
+│   ├── storage.py              # Notes/folders persistence
+│   ├── context_service.py      # Semantic backlinks retrieval/indexing
+│   ├── glossary_service.py     # Automated glossary (spaCy + fallback)
+│   └── storage/                # Local projects + state
 │
 └── macos-app/                  # SwiftUI macOS application
     ├── Domain/                 # Core models
@@ -99,21 +102,22 @@ Grimoire/
     └── create_xcode_project.sh # Xcode project setup
 ```
 
-## 🖥️ How It Works
+## 📚 Technical Specifications
 
-### Backend (Python)
-- **FastAPI Server**: REST API for note management and search
-- **Service Layer**: `services.py` coordinates storage and search
-- **Sentence-Transformers**: Converts text to semantic vectors
-- **FAISS**: Fast similarity search for finding related content
-- **Local Storage**: All data stored in `backend/storage/`
+Start here:
 
-### Frontend (SwiftUI macOS App)
-- **Three-Pane Layout**: Sidebar (notes), Editor (markdown), Backlinks (connections)
-- **Domain/Data/Stores**: Clear separation of models, networking, and state
-- **Real-Time Search**: Debounced search as you type
-- **Native macOS**: Full macOS integration and keyboard shortcuts
-- **Auto-Save**: Configurable auto-save with preview
+- `technical specficiations/00-system-overview.md`
+
+Subsystem deep-dives:
+
+- `technical specficiations/01-backend-fastapi.md`
+- `technical specficiations/02-macos-app.md`
+- `technical specficiations/03-projects-and-storage.md`
+- `technical specficiations/04-semantic-backlinks.md`
+- `technical specficiations/05-glossary.md`
+- `technical specficiations/06-chunked-editor.md`
+- `technical specficiations/07-build-and-dev.md`
+- `technical specficiations/08-api.md`
 
 ## 🔧 Manual Setup (If Needed)
 
@@ -140,7 +144,8 @@ open Grimoire.xcodeproj
 
 The backend provides these REST endpoints:
 - `GET /` and `GET /health` - Health checks
-- `GET /notes` (alias `/all-notes`) - Hierarchical note tree
+- `GET /projects*` - Project management (`.grim`)
+- `GET /notes` (alias `/all-notes`) - Note tree (flat list with children refs)
 - `GET /note/{note_id:path}` - Get note content
 - `POST /update-note` - Save note and update embeddings
 - `POST /create-note` / `/create-folder` - Create items
@@ -148,36 +153,32 @@ The backend provides these REST endpoints:
 - `POST /context` - Cursor-conditioned semantic context (semantic backlinks)
 - `POST /search` - Legacy semantic search (non-cursor-conditioned)
 - `POST /admin/rebuild-index` - Rebuild vector index
+- `GET /glossary` and `POST /admin/rebuild-glossary` - Glossary
 
 ## 🎨 Features
 
 ### Core Features
-- **Automatic Semantic Linking**: No manual linking required
-- **Real-Time Updates**: Backlinks update as you type
-- **Similarity Scoring**: See how strongly notes are related (0-100%)
-- **Click-to-Jump**: Click any backlink to open the related note
-- **Markdown Preview**: Toggle between editor and preview modes
+- **Semantic backlinks (cursor-conditioned)**: Verbatim snippets from other notes relevant to the current cursor context
+- **Automated glossary**: Terms + verbatim definitions derived from your own corpus
+- **Project system**: Create/open `.grim` projects, including a “recent projects” list
 
 ### Organization
-- **Nested Folders**: Create unlimited hierarchy
+- **Nested folders**: Create deep hierarchies
+- **Drag & drop**: Restructure notes/folders without breaking links
 - **Quick Search**: Find notes instantly
 - **Auto-Save**: Never lose your work
-- **Sample Notes**: Get started with helpful examples
 
 ### Privacy & Control
 - **Local-Only**: No cloud, no accounts, no tracking
-- **Configurable**: Adjust search timing, auto-save, themes
-- **Exportable**: Notes are plain markdown files
-- **Open Architecture**: Easy to extend and modify
+- **Deterministic output**: No generative text; everything is traceable to source notes
 
 ## 🚦 Getting Started After Launch
 
-1. **Open the welcome note** (already loaded)
-2. **Start typing** in the editor
-3. **Watch backlinks appear** in the right panel
-4. **Click any backlink** to jump to related content
-5. **Create new notes** using the + button in the sidebar
-6. **Organize with folders** by creating nested notes
+1. Create or open a `.grim` project from the Project Selection screen.
+2. Create notes/folders in the sidebar.
+3. Write in the editor; semantic backlinks appear on the right.
+4. Open the glossary panel from the sidebar icon.
+5. Use the macOS menu bar `File` menu for project actions and `Rebuild Glossary`.
 
 ## 🐛 Troubleshooting
 
@@ -251,41 +252,18 @@ xcodebuild -project Grimoire.xcodeproj -scheme Grimoire
 ### Logs & Debugging
 - **Application Logs**: Check Console.app (filter by "Grimoire")
 - **Backend Logs**: `tail -f grimoire.log`
-- **Dependency Issues**: Check for `faiss-cpu` or `No matching distribution` errors
-- **Cleanup Script**: Use `./cleanup.sh` to fix dependency issues
+- **Dependency Issues**: Check for `faiss-cpu` / Python version compatibility errors
+- **Fast rebuild**: Use `./.rebuild.sh` to clean-rebuild while caching dependencies
 - **API Documentation**: http://127.0.0.1:8000/docs (when backend is running)
-
-## 📈 Development Roadmap
-
-### MVP (Complete ✅)
-- [x] Three-pane SwiftUI interface
-- [x] Python backend with semantic search
-- [x] Real-time backlinks
-- [x] Markdown editing
-- [x] Nested note hierarchy
-- [x] One-command launcher
-
-### Planned Features
-- [ ] Global search across all notes
-- [ ] Tags and tag-based organization
-- [ ] Note templates
-- [ ] Export options (PDF, HTML)
-- [ ] Keyboard shortcuts customization
-- [ ] Theme editor
-- [ ] Plugin system
 
 ## 🤝 Contributing
 
 Grimoire is built with:
 - **Frontend**: SwiftUI, macOS native APIs
-- **Backend**: Python, FastAPI, sentence-transformers, FAISS
+- **Backend**: Python, FastAPI, local embedding + reranking models, FAISS
 - **Communication**: REST API over localhost
 
-The architecture is modular and well-documented in `PROJECT_SUMMARY.md`.
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
+The architecture is modular and documented in `PROJECT_SUMMARY.md` and `technical specficiations/`.
 
 ## 🆘 Support
 
@@ -296,22 +274,12 @@ If you see dependency errors (especially `faiss-cpu`):
 ./grimoire
 ```
 
-### **What Changed**
-- Updated `faiss-cpu` from 1.7.4 to 1.13.0+ for Python 3.13 compatibility
-- Added version ranges instead of fixed versions for better compatibility
-- Added automatic cleanup and retry logic in the launcher
-
 - **Quick Help**: Run `./grimoire help`
 - **Dependency Fix**: Run `./cleanup.sh` then `./grimoire`
+- **Fast Cached Rebuild**: Run `./.rebuild.sh`
 - **Detailed Guide**: See `SETUP.md`
-- **Technical Docs**: See `PROJECT_SUMMARY.md`
+- **Technical Docs**: See `technical specficiations/00-system-overview.md`
 - **Backend API**: http://127.0.0.1:8000/docs (when running)
 
 ---
-
-**Happy note-taking!** Start with `./grimoire` and let the semantic connections guide your thinking.
-
-> **Note for previous users**: If you had issues, run `./cleanup.sh` first to get the updated dependencies.
-```
-
-Now let me create a simple test to verify the launcher works. First, let me check if there are any syntax issues in the launcher script:
+**Happy note-taking!** Start with `./grimoire`.

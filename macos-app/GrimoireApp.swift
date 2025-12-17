@@ -102,17 +102,27 @@ enum ProjectMenuInstaller {
         }
     }
 
-    private static func ensureItems(in menu: NSMenu) {
-        // Remove any previously-inserted items (including older builds that used a shared marker tag).
-        let legacyTag = 901_337
-        let sepTag = legacyTag + 10
-        let newTag = legacyTag + 11
-        let openTag = legacyTag + 12
-        let recentsTag = legacyTag + 13
-        let tagsToRemove: Set<Int> = [legacyTag, sepTag, newTag, openTag, recentsTag]
-        for item in menu.items where tagsToRemove.contains(item.tag) {
-            menu.removeItem(item)
-        }
+	    private static func ensureItems(in menu: NSMenu) {
+	        // Remove any previously-inserted items (including older builds that used a shared marker tag).
+	        let legacyTag = 901_337
+	        let sepTag = legacyTag + 10
+	        let newTag = legacyTag + 11
+	        let openTag = legacyTag + 12
+	        let recentsTag = legacyTag + 13
+	        let rebuildSepTag = legacyTag + 14
+	        let rebuildGlossaryTag = legacyTag + 15
+	        let tagsToRemove: Set<Int> = [
+	            legacyTag,
+	            sepTag,
+	            newTag,
+	            openTag,
+	            recentsTag,
+	            rebuildSepTag,
+	            rebuildGlossaryTag,
+	        ]
+	        for item in menu.items where tagsToRemove.contains(item.tag) {
+	            menu.removeItem(item)
+	        }
 
         let insertionIndex: Int
         if let idx = menu.items.firstIndex(where: { $0.title.lowercased().contains("new window") }) {
@@ -142,16 +152,26 @@ enum ProjectMenuInstaller {
         openItem.target = target
         openItem.tag = openTag
 
-        let recentsMenuItem = NSMenuItem(title: "Open Recents…", action: nil, keyEquivalent: "")
-        recentsMenuItem.tag = recentsTag
-        recentsMenuItem.submenu = buildRecentsMenu()
+	        let recentsMenuItem = NSMenuItem(title: "Open Recents…", action: nil, keyEquivalent: "")
+	        recentsMenuItem.tag = recentsTag
+	        recentsMenuItem.submenu = buildRecentsMenu()
 
-        let insertAt = min(insertionIndex, menu.items.count)
-        menu.insertItem(separator, at: insertAt)
-        menu.insertItem(recentsMenuItem, at: min(insertAt + 1, menu.items.count))
-        menu.insertItem(openItem, at: min(insertAt + 1, menu.items.count))
-        menu.insertItem(newItem, at: min(insertAt + 1, menu.items.count))
-    }
+	        let rebuildSeparator = NSMenuItem.separator()
+	        rebuildSeparator.tag = rebuildSepTag
+	        let rebuildGlossary = NSMenuItem(
+	            title: "Rebuild Glossary",
+	            action: #selector(ProjectMenuTarget.rebuildGlossary(_:)),
+	            keyEquivalent: ""
+	        )
+	        rebuildGlossary.target = target
+	        rebuildGlossary.tag = rebuildGlossaryTag
+
+	        let insertAt = min(insertionIndex, menu.items.count)
+	        let itemsToInsert = [separator, newItem, openItem, recentsMenuItem, rebuildSeparator, rebuildGlossary]
+	        for (offset, item) in itemsToInsert.enumerated() {
+	            menu.insertItem(item, at: min(insertAt + offset, menu.items.count))
+	        }
+	    }
 
     private static func buildRecentsMenu() -> NSMenu {
         let recentsMenu = NSMenu(title: "Open Recents")
@@ -240,16 +260,24 @@ private final class ProjectMenuTarget: NSObject {
         )
     }
 
-    @objc func clearRecents(_ sender: Any?) {
-        UserDefaults.standard.removeObject(forKey: ProjectMenuInstaller.recentProjectsKey)
-        ProjectMenuInstaller.ensureInstalled()
-    }
-}
+	    @objc func clearRecents(_ sender: Any?) {
+	        UserDefaults.standard.removeObject(forKey: ProjectMenuInstaller.recentProjectsKey)
+	        ProjectMenuInstaller.ensureInstalled()
+	    }
 
-extension Notification.Name {
-    static let grimoireCreateProjectRequested = Notification.Name("Grimoire.CreateProjectRequested")
-    static let grimoireOpenProjectRequested = Notification.Name("Grimoire.OpenProjectRequested")
-}
+	    @objc func rebuildGlossary(_ sender: Any?) {
+	        NotificationCenter.default.post(
+	            name: .grimoireRebuildGlossaryRequested,
+	            object: nil
+	        )
+	    }
+	}
+
+	extension Notification.Name {
+	    static let grimoireCreateProjectRequested = Notification.Name("Grimoire.CreateProjectRequested")
+	    static let grimoireOpenProjectRequested = Notification.Name("Grimoire.OpenProjectRequested")
+	    static let grimoireRebuildGlossaryRequested = Notification.Name("Grimoire.RebuildGlossaryRequested")
+	}
 
 private final class ProjectFileMenuDelegate: NSObject, NSMenuDelegate {
     var installer: ((NSMenu) -> Void)?

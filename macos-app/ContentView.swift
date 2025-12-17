@@ -65,6 +65,10 @@ struct ContentView: View {
             BootOverlay(phase: bootPhase) {
                 Task { await boot() }
             }
+
+            if noteStore.isRebuildingGlossary {
+                GlossaryRebuildOverlay()
+            }
         }
         .task {
             await boot()
@@ -76,6 +80,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .grimoireOpenProjectRequested)) { notification in
             guard let path = notification.userInfo?["path"] as? String else { return }
             Task { await openProjectAndEnterApp(path: path) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .grimoireRebuildGlossaryRequested)) { _ in
+            Task { await noteStore.rebuildGlossary() }
         }
         .onChange(of: noteStore.currentProject?.path) { newPath in
             guard let newPath else { return }
@@ -107,6 +114,21 @@ struct ContentView: View {
                     "Unable to connect to backend server.\n\nMake sure the backend is running at http://127.0.0.1:8000"
                 )
             }
+        }
+        .alert(
+            "Glossary Rebuild",
+            isPresented: Binding(
+                get: { noteStore.glossaryRebuildWarning != nil },
+                set: { newValue in
+                    if !newValue { noteStore.glossaryRebuildWarning = nil }
+                }
+            )
+        ) {
+            Button("OK") {
+                noteStore.glossaryRebuildWarning = nil
+            }
+        } message: {
+            Text(noteStore.glossaryRebuildWarning ?? "")
         }
     }
 
@@ -219,6 +241,30 @@ private enum BootPhase: Equatable {
     case failed(String)
     case selectProject
     case ready
+}
+
+private struct GlossaryRebuildOverlay: View {
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.25)
+                .ignoresSafeArea()
+
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Rebuilding glossary…")
+                    .font(.headline)
+                Text("Please wait. This can take a moment.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(18)
+            .frame(maxWidth: 420)
+            .background(.regularMaterial)
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 6)
+        }
+        .allowsHitTesting(true)
+    }
 }
 
 private struct BootOverlay: View {

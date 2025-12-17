@@ -6,6 +6,7 @@ protocol NoteRepository {
     func fetchProjects() async throws -> [ProjectInfo]
     func createProject(name: String) async throws -> ProjectInfo
     func openProject(path: String) async throws -> ProjectInfo
+    func rebuildGlossary() async throws -> GlossaryRebuildResult
     func fetchTree() async throws -> [NoteNode]
     func fetchContent(noteId: String) async throws -> NoteDocument
     func saveContent(noteId: String, content: String, parentId: String?) async throws
@@ -13,6 +14,18 @@ protocol NoteRepository {
     func rename(noteId: String, newId: String) async throws
     func moveItem(noteId: String, parentId: String?) async throws
     func delete(noteId: String) async throws
+}
+
+struct GlossaryRebuildResult: Hashable, Codable {
+    let terms: Int
+    let spacyNotes: Int
+    let fallbackNotes: Int
+
+    enum CodingKeys: String, CodingKey {
+        case terms
+        case spacyNotes = "spacy_notes"
+        case fallbackNotes = "fallback_notes"
+    }
 }
 
 enum NoteRepositoryError: Error, LocalizedError {
@@ -101,6 +114,35 @@ struct HTTPNoteRepository: NoteRepository {
         let data = try await perform(request: request)
         let decoded = try JSONDecoder().decode(ProjectResponse.self, from: data)
         return decoded.project.toDomain()
+    }
+
+    func rebuildGlossary() async throws -> GlossaryRebuildResult {
+        guard let url = URL(string: "admin/rebuild-glossary", relativeTo: baseURL) else {
+            throw NoteRepositoryError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 120
+        let data = try await perform(request: request)
+        struct Response: Codable {
+            let terms: Int?
+            let spacyNotes: Int?
+            let fallbackNotes: Int?
+
+            enum CodingKeys: String, CodingKey {
+                case terms
+                case spacyNotes = "spacy_notes"
+                case fallbackNotes = "fallback_notes"
+            }
+        }
+        guard let decoded = try? JSONDecoder().decode(Response.self, from: data) else {
+            throw NoteRepositoryError.decoding
+        }
+        return GlossaryRebuildResult(
+            terms: decoded.terms ?? 0,
+            spacyNotes: decoded.spacyNotes ?? 0,
+            fallbackNotes: decoded.fallbackNotes ?? 0
+        )
     }
 
     func fetchTree() async throws -> [NoteNode] {
