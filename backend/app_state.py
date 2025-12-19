@@ -73,6 +73,7 @@ class GrimoireAppState:
         glossary = GlossaryService(
             path=(project.glossary_dir / "glossary.json").resolve(),
             index=context_index,
+            storage=storage,
             embedder=context.embedder,
             reranker=context.reranker,
         )

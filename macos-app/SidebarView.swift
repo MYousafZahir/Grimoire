@@ -2,6 +2,16 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AppKit
 
+enum SidebarCreateKind: Equatable {
+    case note
+    case folder
+}
+
+struct SidebarPendingCreate: Equatable {
+    let kind: SidebarCreateKind
+    let parentId: String?
+}
+
 struct SidebarView: View {
     @EnvironmentObject private var noteStore: NoteStore
     @EnvironmentObject private var backlinksStore: BacklinksStore
@@ -12,6 +22,9 @@ struct SidebarView: View {
 	    @State private var isShowingRenameAlert: Bool = false
 	    @State private var renameTargetId: String? = nil
 	@State private var newNoteName: String = ""
+    @State private var pendingCreate: SidebarPendingCreate? = nil
+    @State private var isCreatingItem: Bool = false
+    @State private var creatingItemLabel: String = "Creating…"
 		    @State private var folderToDelete: String? = nil
 		    @State private var showingDeleteConfirmation: Bool = false
 	    @State private var selectedIds: Set<String> = []
@@ -48,14 +61,32 @@ struct SidebarView: View {
 		    }
 
 			    private var mainContent: some View {
-			        VStack(spacing: 0) {
-			            offlineBanner
-			            if noteStore.tree.isEmpty {
-			                emptyState
-			            } else {
-			                treeList
+			        ZStack {
+			            VStack(spacing: 0) {
+			                offlineBanner
+			                if noteStore.tree.isEmpty {
+			                    emptyState
+			                } else {
+			                    treeList
+			                }
+			                keybindFooter
 			            }
-			            keybindFooter
+			            .disabled(isCreatingItem)
+
+			            if isCreatingItem {
+			                VStack(spacing: 12) {
+			                    ProgressView()
+			                    Text(creatingItemLabel)
+			                        .font(.callout)
+			                        .foregroundColor(.secondary)
+			                }
+			                .padding(16)
+			                .background(.regularMaterial)
+			                .cornerRadius(12)
+			                .shadow(radius: 10)
+			                .frame(maxWidth: .infinity, maxHeight: .infinity)
+			                .background(Color.black.opacity(0.12))
+			            }
 			        }
 			    }
 
@@ -120,6 +151,7 @@ struct SidebarView: View {
 		                    renameTargetId: $renameTargetId,
 		                    isShowingRenameAlert: $isShowingRenameAlert,
 		                    newNoteName: $newNoteName,
+                            pendingCreate: $pendingCreate,
 		                    folderToDelete: $folderToDelete,
 		                    showingDeleteConfirmation: $showingDeleteConfirmation,
 		                    onDeleteNote: deleteItem,
@@ -128,6 +160,7 @@ struct SidebarView: View {
 		                    onPrepareBatchDelete: prepareBatchDelete,
 		                    onShowBatchRename: {
 		                        renameTargetId = nil
+                                pendingCreate = nil
 		                        isShowingRenameAlert = false
 		                        batchRenameBaseName = ""
 		                        isShowingBatchRenameAlert = true
@@ -227,26 +260,59 @@ struct SidebarView: View {
 		                    Text("An error occurred")
 		                }
 		            }
-		            .alert("Rename Item", isPresented: $isShowingRenameAlert) {
+		            .alert(renameAlertTitle, isPresented: $isShowingRenameAlert) {
 		                TextField("New name", text: $newNoteName)
 		                Button("Cancel", role: .cancel) {
 		                    isShowingRenameAlert = false
 		                    renameTargetId = nil
+                            pendingCreate = nil
 		                    newNoteName = ""
 		                }
-		                Button("Rename") {
-		                    if let oldNoteId = renameTargetId {
-		                        let nameToRename = newNoteName.trimmingCharacters(in: .whitespacesAndNewlines)
-		                        if !nameToRename.isEmpty {
-		                            Task { await noteStore.rename(noteId: oldNoteId, newName: nameToRename) }
-		                        }
-		                    }
+		                Button(renameActionTitle) {
+                            let nameToUse = newNoteName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let targetRenameId = renameTargetId
+                            let create = pendingCreate
+
 		                    isShowingRenameAlert = false
 		                    renameTargetId = nil
+                            pendingCreate = nil
 		                    newNoteName = ""
+
+                            guard !nameToUse.isEmpty else { return }
+
+                            if let oldNoteId = targetRenameId {
+                                Task { await noteStore.rename(noteId: oldNoteId, newName: nameToUse) }
+                                return
+                            }
+                            guard let create else { return }
+
+                            Task { @MainActor in
+                                creatingItemLabel = create.kind == .note ? "Creating note…" : "Creating folder…"
+                                isCreatingItem = true
+                                defer { isCreatingItem = false }
+
+                                switch create.kind {
+                                case .note:
+                                    if let newId = await noteStore.createNote(name: nameToUse, parentId: create.parentId) {
+                                        selectedIds = [newId]
+                                        selectionAnchorId = newId
+                                        selectedNoteId = newId
+                                    } else {
+                                        showingErrorAlert = true
+                                    }
+                                case .folder:
+                                    if let newId = await noteStore.createFolder(name: nameToUse, parentId: create.parentId) {
+                                        selectedIds = [newId]
+                                        selectionAnchorId = newId
+                                        selectedNoteId = newId
+                                    } else {
+                                        showingErrorAlert = true
+                                    }
+                                }
+                            }
 		                }
 		            } message: {
-		                Text("Enter new name for the item:")
+		                Text(renameMessage)
 		            }
 		            .alert("Delete Item", isPresented: $showingDeleteConfirmation) {
 		                Button("Cancel", role: .cancel) {
@@ -313,6 +379,7 @@ struct SidebarView: View {
 		            .onChange(of: isShowingRenameAlert) { isPresented in
 		                if !isPresented {
 		                    renameTargetId = nil
+                            pendingCreate = nil
 		                    newNoteName = ""
 		                }
 		            }
@@ -390,28 +457,40 @@ struct SidebarView: View {
 	    }
 
 	    private func createNoteWithRename(parentId: String?) {
-	        Task { @MainActor in
-	            if let newId = await noteStore.createNote(parentId: parentId) {
-	                selectedIds = [newId]
-	                selectionAnchorId = newId
-	                renameTargetId = newId
-	                newNoteName = noteStore.title(for: newId) ?? ""
-	                isShowingRenameAlert = true
-	            }
-	        }
+            pendingCreate = SidebarPendingCreate(kind: .note, parentId: parentId)
+            renameTargetId = nil
+            newNoteName = ""
+            isShowingRenameAlert = true
 	    }
 
 	    private func createFolderWithRename(parentId: String?) {
-	        Task { @MainActor in
-	            if let newId = await noteStore.createFolder(parentId: parentId) {
-	                selectedIds = [newId]
-	                selectionAnchorId = newId
-	                renameTargetId = newId
-	                newNoteName = noteStore.title(for: newId) ?? ""
-	                isShowingRenameAlert = true
-	            }
-	        }
+            pendingCreate = SidebarPendingCreate(kind: .folder, parentId: parentId)
+            renameTargetId = nil
+            newNoteName = ""
+            isShowingRenameAlert = true
 	    }
+
+        private var renameAlertTitle: String {
+            if let pendingCreate {
+                switch pendingCreate.kind {
+                case .note: return "Name New Note"
+                case .folder: return "Name New Folder"
+                }
+            }
+            return "Rename Item"
+        }
+
+        private var renameActionTitle: String {
+            if pendingCreate != nil { return "Create" }
+            return "Rename"
+        }
+
+        private var renameMessage: String {
+            if pendingCreate != nil {
+                return "Enter a name:"
+            }
+            return "Enter new name for the item:"
+        }
 
 	    private func handleSelection(_ id: String) {
 	        let flags = NSApp.currentEvent?.modifierFlags ?? []
@@ -510,6 +589,7 @@ struct SidebarView: View {
 	        @Binding var renameTargetId: String?
 	        @Binding var isShowingRenameAlert: Bool
 	        @Binding var newNoteName: String
+            @Binding var pendingCreate: SidebarPendingCreate?
 	        @Binding var folderToDelete: String?
 	        @Binding var showingDeleteConfirmation: Bool
 	        var onDeleteNote: (String) -> Void
@@ -520,26 +600,18 @@ struct SidebarView: View {
 	        let onShowBatchRename: () -> Void
 
 	        private func createChildNote() {
-	            Task { @MainActor in
-	                if let newId = await noteStore.createNote(parentId: noteInfo.id) {
-	                    onSelect(newId)
-	                    renameTargetId = newId
-	                    newNoteName = noteStore.title(for: newId) ?? ""
-	                    isShowingRenameAlert = true
-	                }
+                pendingCreate = SidebarPendingCreate(kind: .note, parentId: noteInfo.id)
+                renameTargetId = nil
+                newNoteName = ""
+                isShowingRenameAlert = true
             }
-        }
 
 	        private func createChildFolder() {
-	            Task { @MainActor in
-	                if let newId = await noteStore.createFolder(parentId: noteInfo.id) {
-	                    onSelect(newId)
-	                    renameTargetId = newId
-	                    newNoteName = noteStore.title(for: newId) ?? ""
-	                    isShowingRenameAlert = true
-	                }
+                pendingCreate = SidebarPendingCreate(kind: .folder, parentId: noteInfo.id)
+                renameTargetId = nil
+                newNoteName = ""
+                isShowingRenameAlert = true
             }
-        }
 
 		    var body: some View {
 		        if noteInfo.isFolder {
@@ -590,6 +662,7 @@ struct SidebarView: View {
 			                    Divider()
 
 			                    Button("Rename") {
+			                        pendingCreate = nil
 			                        renameTargetId = noteInfo.id
 			                        newNoteName = noteInfo.title
 			                        isShowingRenameAlert = true
@@ -668,6 +741,7 @@ struct SidebarView: View {
 			                    }
 			                } else {
 			                    Button("Rename") {
+			                        pendingCreate = nil
 			                        renameTargetId = noteInfo.id
 			                        newNoteName = noteInfo.title
 			                        isShowingRenameAlert = true

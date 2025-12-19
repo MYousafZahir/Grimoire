@@ -28,6 +28,8 @@ final class NoteStore: ObservableObject {
     @Published var currentProject: ProjectInfo? = nil
     @Published var availableProjects: [ProjectInfo] = []
     @Published var pendingReveal: NoteRevealRequest? = nil
+    @Published var isRebuildingGlossary: Bool = false
+    @Published var glossaryRebuildWarning: String? = nil
 
     private let repository: NoteRepository
     private var lastSavedContent: String = ""
@@ -94,6 +96,27 @@ final class NoteStore: ObservableObject {
         } catch {
             if isCancellation(error) { return }
             availableProjects = []
+        }
+    }
+
+    func rebuildGlossary() async {
+        guard backendStatus == .online else { return }
+        guard currentProject != nil else { return }
+        isRebuildingGlossary = true
+        defer { isRebuildingGlossary = false }
+        do {
+            let result = try await repository.rebuildGlossary()
+            lastError = nil
+            if result.fallbackNotes > 0 {
+                glossaryRebuildWarning =
+                    "Glossary rebuilt, but fallback extraction was used for \(result.fallbackNotes) notes (spaCy used for \(result.spacyNotes)).\n\nTerms: \(result.terms)\n\nFor best results, ensure spaCy + en_core_web_sm are installed for the backend."
+            } else {
+                glossaryRebuildWarning =
+                    "Glossary rebuilt successfully using spaCy for all notes.\n\nTerms: \(result.terms)"
+            }
+        } catch {
+            if isCancellation(error) { return }
+            lastError = error.localizedDescription
         }
     }
 
@@ -301,9 +324,52 @@ final class NoteStore: ObservableObject {
         }
     }
 
+    func createNote(name: String, parentId: String?) async -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let requestedId = computeCreatedId(parentId: parentId, name: trimmed)
+        let noteId = ensureUniqueId(requestedId, fallbackPrefix: "note")
+        let defaultContent = "# \(leafTitle(for: noteId))\n\nStart writing here..."
+
+        do {
+            try await repository.saveContent(
+                noteId: noteId,
+                content: defaultContent,
+                parentId: parentId
+            )
+            await refreshTree()
+            select(noteId)
+            return noteId
+        } catch {
+            if isCancellation(error) { return nil }
+            lastError = error.localizedDescription
+            return nil
+        }
+    }
+
     func createFolder(parentId: String?) async -> String? {
         let newId = generateId(prefix: "folder")
         let folderPath = parentId != nil ? "\(parentId!)/\(newId)" : newId
+
+        do {
+            let folder = try await repository.createFolder(path: folderPath)
+            await refreshTree()
+            select(folder.id)
+            return folder.id
+        } catch {
+            if isCancellation(error) { return nil }
+            lastError = error.localizedDescription
+            return nil
+        }
+    }
+
+    func createFolder(name: String, parentId: String?) async -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let requestedId = computeCreatedId(parentId: parentId, name: trimmed)
+        let folderPath = ensureUniqueId(requestedId, fallbackPrefix: "folder")
 
         do {
             let folder = try await repository.createFolder(path: folderPath)
@@ -464,6 +530,48 @@ private extension NoteStore {
             return "\(parent)/\(normalized)"
         }
         return normalized
+    }
+
+    func computeCreatedId(parentId: String?, name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalized.contains("/") {
+            return normalized
+        }
+        if let parentId, !parentId.isEmpty {
+            return "\(parentId)/\(normalized)"
+        }
+        return normalized
+    }
+
+    func leafTitle(for id: String) -> String {
+        let leaf = id.split(separator: "/").last.map(String.init) ?? id
+        return leaf.replacingOccurrences(of: "_", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func ensureUniqueId(_ requestedId: String, fallbackPrefix: String) -> String {
+        let normalized = requestedId.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalized.isEmpty else { return generateId(prefix: fallbackPrefix) }
+
+        if findNode(in: tree, id: normalized) == nil {
+            return normalized
+        }
+
+        let parts = normalized.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        let parent = parts.dropLast().joined(separator: "/")
+        let leaf = parts.last ?? normalized
+
+        for i in 2...99 {
+            let candidateLeaf = "\(leaf) \(i)"
+            let candidate = parent.isEmpty ? candidateLeaf : "\(parent)/\(candidateLeaf)"
+            if findNode(in: tree, id: candidate) == nil {
+                return candidate
+            }
+        }
+
+        // Worst case fallback to timestamp-based id under the requested parent.
+        let fallbackLeaf = generateId(prefix: fallbackPrefix)
+        return parent.isEmpty ? fallbackLeaf : "\(parent)/\(fallbackLeaf)"
     }
 
     func updateSelectionAfterIdChange(oldId: String, newId: String) {

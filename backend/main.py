@@ -302,6 +302,22 @@ async def rebuild_index():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.post("/admin/rebuild-glossary", tags=["admin"])
+async def rebuild_glossary():
+    try:
+        services = state.current()
+        count = await asyncio.to_thread(services.glossary.rebuild)
+        return {
+            "success": True,
+            "terms": int(count),
+            "spacy_notes": int(getattr(services.glossary, "last_build_spacy_notes", 0)),
+            "fallback_notes": int(getattr(services.glossary, "last_build_fallback_notes", 0)),
+        }
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.post("/admin/warmup", response_model=WarmupResponsePayload, tags=["admin"])
 async def warmup(request: WarmupRequest = WarmupRequest()):
     try:
