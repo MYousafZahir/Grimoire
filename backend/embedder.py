@@ -2,7 +2,6 @@
 Embedding module for Grimoire.
 
 Uses sentence-transformers to convert text chunks into vector embeddings.
-Falls back to simple embeddings if sentence-transformers is not available.
 """
 
 import os
@@ -14,54 +13,45 @@ import numpy as np
 class Embedder:
     """Handles text embedding using sentence-transformers."""
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: Optional[str] = None):
         """
         Initialize the embedder.
 
         Args:
             model_name: Name of the sentence-transformers model to use.
-                       Default is "all-MiniLM-L6-v2" (good balance of speed/quality).
+                       Defaults to `GRIMOIRE_SEARCH_EMBED_MODEL` or `BAAI/bge-small-en-v1.5`.
         """
-        self.model_name = model_name
+        self.model_name = (model_name or os.environ.get("GRIMOIRE_SEARCH_EMBED_MODEL") or "BAAI/bge-small-en-v1.5")
         self.model = None
-        self.embedding_dim = 384  # Default for MiniLM-L6-v2
-        self.use_fallback = False
+        self.embedding_dim = 384  # common for many small ST models; refined after load
 
     def load_model(self):
-        """Lazy load the sentence-transformers model with fallback."""
-        if self.model is None:
-            try:
-                print(
-                    f"Attempting to load sentence-transformers model: {self.model_name}"
-                )
-                from sentence_transformers import SentenceTransformer
+        """Lazy load the sentence-transformers model."""
+        if self.model is not None:
+            return
+        try:
+            print(f"Attempting to load sentence-transformers model: {self.model_name}")
+            from sentence_transformers import SentenceTransformer
+        except ImportError as e:
+            raise RuntimeError(
+                "sentence-transformers is required for embeddings. "
+                f"Install it and ensure model '{self.model_name}' is available. Reason: {e}"
+            ) from e
 
-                print(f"✓ Imported SentenceTransformer")
-                self.model = SentenceTransformer(self.model_name)
-                print(f"✓ Created SentenceTransformer instance")
-                # Get actual embedding dimension
-                test_embedding = self.model.encode(["test"])
-                self.embedding_dim = test_embedding.shape[1]
-                self.use_fallback = False
-                print(
-                    f"✓ Model loaded successfully. Embedding dimension: {self.embedding_dim}"
-                )
-            except ImportError as e:
-                print(
-                    f"Warning: sentence-transformers not installed. Using fallback embeddings. Error: {e}"
-                )
-                print("Install with: pip install sentence-transformers")
-                self.use_fallback = True
-                self.embedding_dim = 384  # Use default dimension
-            except Exception as e:
-                print(
-                    f"Warning: Failed to load model: {str(e)}. Using fallback embeddings."
-                )
-                import traceback
+        try:
+            from context_service import _resolve_hf_snapshot
 
-                print(f"Full traceback: {traceback.format_exc()}")
-                self.use_fallback = True
-                self.embedding_dim = 384  # Use default dimension
+            resolved = _resolve_hf_snapshot(self.model_name)
+            self.model = SentenceTransformer(resolved)
+            test_embedding = self.model.encode(["test"])
+            self.embedding_dim = test_embedding.shape[1]
+            print(
+                f"✓ Model loaded successfully. Embedding dimension: {self.embedding_dim}"
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to load sentence-transformers model '{self.model_name}': {e}"
+            ) from e
 
     def embed(self, text: str) -> List[float]:
         """
@@ -76,21 +66,14 @@ class Embedder:
         self.load_model()
 
         if not text or not text.strip():
-            # Return zero vector for empty text
             return [0.0] * self.embedding_dim
-
-        if self.use_fallback or self.model is None:
-            # Use fallback embedding
-            print(f"Using fallback embedding for text of length: {len(text)}")
-            return self._fallback_embed(text)
 
         try:
             # Encode the text
             embedding = self.model.encode([text], convert_to_numpy=True)
             return embedding[0].tolist()
         except Exception as e:
-            # Fall back to simple embedding if model encoding fails
-            return self._fallback_embed(text)
+            raise RuntimeError(f"Embedding failed: {e}") from e
 
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """
@@ -103,11 +86,6 @@ class Embedder:
             List of embedding vectors
         """
         self.load_model()
-
-        if self.use_fallback or self.model is None:
-            # Fallback: simple hash-based embeddings for basic functionality
-            print(f"Using fallback batch embedding for {len(texts)} texts")
-            return [self._fallback_embed(text) for text in texts]
 
         if not texts:
             return []
@@ -131,41 +109,13 @@ class Embedder:
 
             return result
         except Exception as e:
-            raise RuntimeError(f"Batch embedding failed: {str(e)}")
+            raise RuntimeError(f"Batch embedding failed: {str(e)}") from e
 
     def get_embedding_dim(self) -> int:
         """Get the dimension of embedding vectors."""
         self.load_model()
         return self.embedding_dim
 
-    def _fallback_embed(self, text: str) -> List[float]:
-        """
-        Simple fallback embedding when sentence-transformers is not available.
-        Creates deterministic pseudo-random embeddings based on text hash.
-
-        Args:
-            text: Input text
-
-        Returns:
-            List of floats representing a simple embedding
-        """
-        import hashlib
-        import math
-
-        # Create a deterministic hash from the text
-        text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
-        hash_int = int(text_hash[:8], 16)  # Use first 8 chars for seed
-
-        # Generate deterministic pseudo-random embedding
-        embedding = []
-        for i in range(self.embedding_dim):
-            # Use different seeds for each dimension
-            seed = hash_int + i * 997  # Prime number for variation
-            # Simple pseudo-random function
-            value = math.sin(seed) * 0.5 + 0.5  # Normalize to 0-1
-            embedding.append(float(value))
-
-        return embedding
 
     def cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """

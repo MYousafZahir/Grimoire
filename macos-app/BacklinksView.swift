@@ -45,12 +45,12 @@ struct BacklinksView: View {
                             .font(.system(size: 48))
                             .foregroundColor(.secondary)
 
-                        Text("No backlinks found")
+                        Text("Nothing worth showing yet")
                             .font(.title3)
                             .foregroundColor(.secondary)
 
                         Text(
-                            "As you type, semantically related excerpts from other notes will appear here."
+                            "No high-quality semantic backlinks were found for this cursor location."
                         )
                         .font(.caption)
                         .foregroundColor(.secondary)

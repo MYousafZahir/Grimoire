@@ -43,79 +43,54 @@ class Indexer:
 
     def _load_metadata(self):
         """Load chunk metadata from JSON file."""
-        try:
-            if os.path.exists(self.metadata_path):
-                with open(self.metadata_path, "r", encoding="utf-8") as f:
-                    self.metadata = json.load(f)
-                print(f"Loaded metadata for {len(self.metadata)} chunks")
-            else:
-                self.metadata = {}
-                print("No existing metadata found, starting fresh")
-        except Exception as e:
-            print(f"Failed to load metadata: {e}")
+        if os.path.exists(self.metadata_path):
+            with open(self.metadata_path, "r", encoding="utf-8") as f:
+                self.metadata = json.load(f)
+            print(f"Loaded metadata for {len(self.metadata)} chunks")
+        else:
             self.metadata = {}
+            print("No existing metadata found, starting fresh")
 
     def _save_metadata(self):
         """Save chunk metadata to JSON file."""
-        try:
-            os.makedirs(os.path.dirname(self.metadata_path), exist_ok=True)
-            with open(self.metadata_path, "w", encoding="utf-8") as f:
-                json.dump(self.metadata, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"Failed to save metadata: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return False
+        os.makedirs(os.path.dirname(self.metadata_path), exist_ok=True)
+        with open(self.metadata_path, "w", encoding="utf-8") as f:
+            json.dump(self.metadata, f, indent=2)
+        return True
 
     def _load_note_tree(self):
         """Load note tree from JSON file."""
-        try:
-            if os.path.exists(self.note_tree_path):
-                with open(self.note_tree_path, "r", encoding="utf-8") as f:
-                    self.note_tree = json.load(f)
-                print(f"Loaded note tree from {self.note_tree_path}")
-            else:
-                self.note_tree = {}
-                print("No existing note tree found, starting fresh")
-        except Exception as e:
-            print(f"Failed to load note tree: {e}")
+        if os.path.exists(self.note_tree_path):
+            with open(self.note_tree_path, "r", encoding="utf-8") as f:
+                self.note_tree = json.load(f)
+            print(f"Loaded note tree from {self.note_tree_path}")
+        else:
             self.note_tree = {}
+            print("No existing note tree found, starting fresh")
 
     def _save_note_tree(self):
         """Save note tree to JSON file."""
-        try:
-            os.makedirs(os.path.dirname(self.note_tree_path), exist_ok=True)
-            with open(self.note_tree_path, "w", encoding="utf-8") as f:
-                json.dump(self.note_tree, f, indent=2)
-            print(f"Saved note tree to {self.note_tree_path}")
-            return True
-        except Exception as e:
-            print(f"Failed to save note tree: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return False
+        os.makedirs(os.path.dirname(self.note_tree_path), exist_ok=True)
+        with open(self.note_tree_path, "w", encoding="utf-8") as f:
+            json.dump(self.note_tree, f, indent=2)
+        print(f"Saved note tree to {self.note_tree_path}")
+        return True
 
     def _load_or_create_index(self):
         """Load existing FAISS index or create a new one."""
         try:
             import faiss
+        except ImportError as exc:
+            raise RuntimeError(
+                "FAISS is required for semantic search. Install with: pip install faiss-cpu"
+            ) from exc
 
-            if os.path.exists(self.index_path):
-                print(f"Loading FAISS index from {self.index_path}")
-                self.index = faiss.read_index(self.index_path)
-                print(f"Index loaded with {self.index.ntotal} vectors")
-            else:
-                print("No existing FAISS index found, will create when needed")
-                self.index = None
-
-        except ImportError:
-            print("FAISS not installed. Install with: pip install faiss-cpu")
-            self.index = None
-        except Exception as e:
-            print(f"Failed to load FAISS index: {e}")
+        if os.path.exists(self.index_path):
+            print(f"Loading FAISS index from {self.index_path}")
+            self.index = faiss.read_index(self.index_path)
+            print(f"Index loaded with {self.index.ntotal} vectors")
+        else:
+            print("No existing FAISS index found, will create when needed")
             self.index = None
 
     def _create_index(self, embedding_dim: int):
@@ -264,25 +239,24 @@ class Indexer:
                 self.index.add(embeddings_np)
                 print(f"Rebuilt index with {len(embeddings)} embeddings")
 
-        except ImportError:
-            self.index = None
-            print("Warning: FAISS not available, index not rebuilt")
+        except ImportError as exc:
+            raise RuntimeError(
+                "FAISS is required for semantic search. Install with: pip install faiss-cpu"
+            ) from exc
 
     def _save_index(self):
         """Save the FAISS index to disk."""
         if self.index is not None:
             try:
                 import faiss
+            except ImportError as exc:
+                raise RuntimeError(
+                    "FAISS is required for semantic search. Install with: pip install faiss-cpu"
+                ) from exc
 
-                os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
-                faiss.write_index(self.index, self.index_path)
-                return True
-            except Exception as e:
-                print(f"Failed to save FAISS index: {e}")
-                import traceback
-
-                traceback.print_exc()
-                return False
+            os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
+            faiss.write_index(self.index, self.index_path)
+            return True
         return True  # Return True if no index to save
 
     def search(

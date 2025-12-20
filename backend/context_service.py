@@ -22,8 +22,30 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 import numpy as np
 
 from context_models import ContextRequest, ContextSnippetPayload, WarmupResponsePayload
-from embedder import Embedder
 from models import NoteKind, NoteRecord
+
+
+def _resolve_hf_snapshot(model_name_or_path: str) -> str:
+    """Resolve a HF model id to a local snapshot path (no network).
+
+    If the model is not present locally, this raises.
+    """
+    name = (model_name_or_path or "").strip()
+    if not name:
+        raise ValueError("Model name is empty.")
+    if os.path.exists(name):
+        return name
+    try:
+        from huggingface_hub import snapshot_download  # type: ignore
+    except Exception as exc:
+        raise RuntimeError(f"huggingface_hub is required to load '{name}': {exc}") from exc
+    try:
+        return snapshot_download(repo_id=name, local_files_only=True)
+    except Exception as exc:
+        raise RuntimeError(
+            f"Model '{name}' is not available in the local HF cache. "
+            "Download it (with network access) before running."
+        ) from exc
 
 
 def _configure_cpu_threading_defaults():
@@ -82,6 +104,18 @@ def _sigmoid(x: float) -> float:
     return z / (1.0 + z)
 
 
+def _min_max_normalize(scores: Dict[str, float]) -> Dict[str, float]:
+    if not scores:
+        return {}
+    values = list(scores.values())
+    lo = min(values)
+    hi = max(values)
+    denom = hi - lo
+    if denom <= 1e-9:
+        return {k: 0.0 for k in scores}
+    return {k: (v - lo) / denom for k, v in scores.items()}
+
+
 def _stable_int_id(text: str) -> int:
     """Legacy deterministic id helper.
 
@@ -94,11 +128,66 @@ def _stable_int_id(text: str) -> int:
     return -2 if value == -1 else value
 
 
+def _chunk_block_index(chunk_id: str) -> Optional[int]:
+    if not chunk_id:
+        return None
+    try:
+        return int(str(chunk_id).rsplit(":", 1)[-1])
+    except Exception:
+        return None
+
+
 def _clean_text(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 _BLANK_SPLIT_RE = re.compile(r"\n[ \t]*\n+")
+
+_CHUNK_MARKER = "<!-- grimoire-chunk -->"
+_CHUNK_MARKER_BLOCK = "\n\n<!-- grimoire-chunk -->\n\n"
+
+
+def _normalize_note_text_and_cursor(text: str, cursor: int) -> Tuple[str, int]:
+    """Apply the same chunk-marker normalization as indexing, with cursor remapping."""
+    text = _clean_text(text or "")
+    cursor = int(cursor)
+    cursor = max(0, min(cursor, len(text)))
+
+    out: List[str] = []
+    out_len = 0
+    cursor_out: Optional[int] = None
+
+    i = 0
+    while i < len(text):
+        if cursor_out is None and i == cursor:
+            cursor_out = out_len
+
+        if text.startswith(_CHUNK_MARKER_BLOCK, i):
+            end = i + len(_CHUNK_MARKER_BLOCK)
+            if cursor_out is None and i <= cursor < end:
+                # Keep the leading double-newline and drop the marker.
+                cursor_out = out_len + min(cursor - i, 2)
+            out.append("\n\n")
+            out_len += 2
+            i = end
+            continue
+
+        if text.startswith(_CHUNK_MARKER, i):
+            end = i + len(_CHUNK_MARKER)
+            if cursor_out is None and i <= cursor < end:
+                cursor_out = out_len
+            i = end
+            continue
+
+        ch = text[i]
+        out.append(ch)
+        out_len += 1
+        i += 1
+
+    if cursor_out is None:
+        cursor_out = out_len
+
+    return "".join(out), int(cursor_out)
 
 
 @dataclass(frozen=True)
@@ -146,8 +235,112 @@ def split_blocks(text: str) -> List[Block]:
     return blocks
 
 
+def chunk_blocks(text: str) -> List[Block]:
+    """Chunk markdown into higher-quality, section-aware blocks.
+
+    This merges small heading/list blocks into larger semantic chunks to avoid
+    low-value "just a header" or tiny list fragments dominating retrieval.
+    """
+    full_text = text
+    base = split_blocks(full_text)
+    if not base:
+        return [Block(start=0, end=0, text="")]
+
+    try:
+        max_chars = int(os.environ.get("GRIMOIRE_CONTEXT_CHUNK_MAX_CHARS", "1600"))
+    except Exception:
+        max_chars = 1600
+    max_chars = max(400, max_chars)
+
+    def heading_level(block_text: str) -> Optional[int]:
+        line = (block_text or "").lstrip().splitlines()[0] if (block_text or "").strip() else ""
+        if not line.startswith("#"):
+            return None
+        return len(line) - len(line.lstrip("#"))
+
+    def is_labelish(block_text: str) -> bool:
+        lines = [ln.strip() for ln in (block_text or "").splitlines() if ln.strip()]
+        if not lines:
+            return False
+        first = lines[0].strip()
+        lowered = first.lower()
+        if lowered.startswith("example:") or lowered.startswith("important:"):
+            return True
+        if first.endswith(":") and len(lines) <= 2:
+            return True
+        return False
+
+    def is_listy(block_text: str) -> bool:
+        lines = [ln.strip() for ln in (block_text or "").splitlines() if ln.strip()]
+        if not lines:
+            return False
+        list_lines = sum(1 for ln in lines if _LIST_LINE_RE.match(ln))
+        return (list_lines >= 2) or (list_lines == len(lines) and len(lines) >= 1)
+
+    merged: List[Block] = []
+    i = 0
+    while i < len(base):
+        block = base[i]
+        if not (block.text or "").strip():
+            i += 1
+            continue
+
+        level = heading_level(block.text)
+        # Do not let top-level headings consume the entire note.
+        if level is not None and level >= 2:
+            start = block.start
+            end = block.end
+            j = i + 1
+            while j < len(base):
+                nxt = base[j]
+                if not (nxt.text or "").strip():
+                    j += 1
+                    continue
+                nxt_level = heading_level(nxt.text)
+                if nxt_level is not None and nxt_level <= level:
+                    break
+                candidate_text = full_text[start : nxt.end].strip()
+                if len(candidate_text) > max_chars:
+                    break
+                end = nxt.end
+                j += 1
+            merged.append(Block(start=start, end=end, text=full_text[start:end].strip()))
+            i = j
+            continue
+
+        if is_labelish(block.text) or is_listy(block.text):
+            start = block.start
+            end = block.end
+            j = i + 1
+            while j < len(base):
+                nxt = base[j]
+                if not (nxt.text or "").strip():
+                    j += 1
+                    continue
+                nxt_level = heading_level(nxt.text)
+                if nxt_level is not None:
+                    break
+                if not (is_labelish(nxt.text) or is_listy(nxt.text)):
+                    break
+                candidate_text = full_text[start : nxt.end].strip()
+                if len(candidate_text) > max_chars:
+                    break
+                end = nxt.end
+                j += 1
+            merged.append(Block(start=start, end=end, text=full_text[start:end].strip()))
+            i = j
+            continue
+
+        merged.append(block)
+        i += 1
+
+    return merged or [Block(start=0, end=0, text="")]
+
+
 _HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}#{1,6}[ \t]+(.+?)\s*$")
+_HEADING_ONLY_RE = re.compile(r"(?m)^[ \t]{0,3}#{1,6}[ \t]+(.+?)\s*$")
 _CAP_PHRASE_RE = re.compile(r"\b(?:[A-Z][A-Za-z0-9'_-]*)(?:\s+[A-Z][A-Za-z0-9'_-]*){0,4}\b")
+_LIST_LINE_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
 
 
 def _normalize_concept_label(label: str) -> str:
@@ -158,7 +351,7 @@ def _normalize_concept_label(label: str) -> str:
     return label.lower().strip()
 
 
-def extract_concept_candidates(text: str) -> List[str]:
+def extract_concept_candidates(text: str, *, min_single_occurrences: int = 1) -> List[str]:
     """Heuristic concept extraction from user markdown."""
     text = _clean_text(text)
     candidates: List[str] = []
@@ -180,6 +373,18 @@ def extract_concept_candidates(text: str) -> List[str]:
         norm = _normalize_concept_label(item)
         if not norm or norm in seen:
             continue
+        if norm in _CONCEPT_STOPLIST:
+            continue
+        parts = [p for p in norm.split() if p]
+        if not parts:
+            continue
+        if min_single_occurrences > 1 and len(parts) == 1:
+            if _count_occurrences(text, item) < int(min_single_occurrences):
+                continue
+        if len(parts) == 1 and parts[0] in _CAP_STOPWORDS:
+            continue
+        if all(part in _INFO_STOPWORDS or part in _CAP_STOPWORDS for part in parts):
+            continue
         if len(norm) < 3:
             continue
         seen.add(norm)
@@ -195,6 +400,16 @@ def _count_occurrences(haystack: str, needle: str) -> int:
     return len(pattern.findall(haystack))
 
 
+def _is_heading_only(text: str) -> bool:
+    stripped = (text or "").strip()
+    if not stripped:
+        return False
+    if _HEADING_ONLY_RE.fullmatch(stripped) is None:
+        return False
+    tokens = _SparseTokenizer.tokenize(stripped)
+    return len(tokens) <= 6
+
+
 def _sentences_excerpt(text: str, max_sentences: int = 3, max_chars: int = 600) -> str:
     text = text.strip()
     if not text:
@@ -207,6 +422,185 @@ def _sentences_excerpt(text: str, max_sentences: int = 3, max_chars: int = 600) 
         parts[1] = f"{parts[0]} {parts[1]}".strip()
         parts = parts[1:]
     excerpt = " ".join(parts[:max_sentences]).strip()
+    if len(excerpt) > max_chars:
+        excerpt = excerpt[:max_chars].rstrip()
+    return excerpt
+
+
+def _query_aware_excerpt(
+    text: str,
+    query_lex_tokens: Set[str],
+    *,
+    max_units: int = 3,
+    max_chars: int = 600,
+    cursor_char: Optional[int] = None,
+    avoid_radius: int = 0,
+    hard_avoid: bool = False,
+) -> str:
+    text = (text or "").strip()
+    if not text:
+        return ""
+
+    query_set = set(query_lex_tokens or set())
+
+    units: List[Tuple[str, int]] = []
+    pos = 0
+    for raw_line in text.splitlines(True):
+        stripped = raw_line.strip()
+        if stripped:
+            units.append((stripped, pos))
+        pos += len(raw_line)
+
+    if not units:
+        return ""
+
+    cursor = int(cursor_char) if cursor_char is not None else None
+    avoid = max(0, int(avoid_radius))
+
+    def is_tag_list_line(line: str) -> bool:
+        if line.count(",") < 2:
+            return False
+        if re.search(r"[.!?]", line):
+            return False
+        tokens = _lexical_tokens(line)
+        if len(tokens) > 12:
+            return False
+        parts = [p.strip() for p in line.split(",") if p.strip()]
+        if len(parts) < 3:
+            return False
+        for p in parts:
+            pt = _lexical_tokens(p)
+            if not (1 <= len(pt) <= 4):
+                return False
+        return True
+
+    def unit_score(unit: str, start: int) -> float:
+        if _is_low_information_text(unit):
+            return -1.0
+        # Avoid "tag list" / header-list lines like "A, B, C, D".
+        if is_tag_list_line(unit):
+            return -1.0
+        tokens = set(_lexical_tokens(unit))
+        overlap = len(tokens & query_set) if query_set else 0
+        q = _chunk_quality_score(unit)
+        # Prefer lexical overlap; only fall back to intrinsic quality when no overlap exists.
+        if query_set and overlap == 0:
+            score = 0.05 * float(q)
+        else:
+            precision = float(overlap) / float(max(1, len(tokens))) if tokens else 0.0
+            recall = float(overlap) / float(max(1, len(query_set))) if query_set else 0.0
+            overlap_score = 0.7 * precision + 0.3 * recall
+            score = 0.8 * overlap_score + 0.2 * float(q)
+        if cursor is not None and avoid > 0:
+            dist = abs(int(start) - int(cursor))
+            if hard_avoid and dist < avoid:
+                return -1.0
+            away = float(min(1.0, float(dist) / float(avoid)))
+            score *= 0.05 + 0.95 * away
+        return score
+
+    scored = [(i, unit_score(u, start), u) for i, (u, start) in enumerate(units)]
+    scored.sort(key=lambda t: (-t[1], -len(_lexical_tokens(t[2])), t[0]))
+    best_score = scored[0][1]
+    # Prefer earlier units when multiple candidates are similarly good.
+    tie_margin = float(os.environ.get("GRIMOIRE_EXCERPT_TIE_MARGIN", "0.04"))
+    best_i = min(i for i, s, _ in scored if s >= best_score - tie_margin)
+
+    chosen: List[str] = []
+    best_unit = units[best_i][0].strip()
+
+    def is_list_line(line: str) -> bool:
+        return bool(_LIST_LINE_RE.match(line))
+
+    # If the best unit is part of a list (or a list lead-in), include adjacent list items even
+    # when they don't share lexical tokens with the cursor window. Otherwise, we often surface
+    # a single bullet (low value) instead of a coherent multi-bullet excerpt.
+    list_mode = False
+    list_start = best_i
+    list_end = best_i
+    lead_in: Optional[str] = None
+    if is_list_line(best_unit):
+        list_mode = True
+        while list_start - 1 >= 0 and is_list_line(units[list_start - 1][0]):
+            list_start -= 1
+        while list_end + 1 < len(units) and is_list_line(units[list_end + 1][0]):
+            list_end += 1
+        maybe_lead_i = list_start - 1
+        if maybe_lead_i >= 0:
+            maybe_lead = units[maybe_lead_i][0].strip()
+            if (
+                maybe_lead
+                and not _is_low_information_text(maybe_lead)
+                and not is_tag_list_line(maybe_lead)
+                and not is_list_line(maybe_lead)
+                and maybe_lead.endswith(":")
+            ):
+                lead_in = maybe_lead
+    else:
+        # Lead-in line directly followed by a list.
+        if best_unit.endswith(":") and best_i + 1 < len(units) and is_list_line(units[best_i + 1][0]):
+            list_mode = True
+            lead_in = best_unit
+            list_start = best_i + 1
+            list_end = list_start
+            while list_end + 1 < len(units) and is_list_line(units[list_end + 1][0]):
+                list_end += 1
+
+    if list_mode:
+        if lead_in:
+            chosen.append(lead_in)
+        # Prefer forward list items for readability.
+        for i in range(best_i if is_list_line(best_unit) else list_start, list_end + 1):
+            unit = units[i][0].strip()
+            if not unit:
+                continue
+            if _is_low_information_text(unit):
+                continue
+            if is_tag_list_line(unit):
+                continue
+            chosen.append(unit)
+            if len(chosen) >= max_units:
+                break
+        # If we still have room, backfill earlier list items to complete the list excerpt.
+        if len(chosen) < max_units and is_list_line(best_unit):
+            for i in range(best_i - 1, list_start - 1, -1):
+                unit = units[i][0].strip()
+                if not unit:
+                    continue
+                if _is_low_information_text(unit):
+                    continue
+                if is_tag_list_line(unit):
+                    continue
+                chosen.insert(1 if lead_in else 0, unit)
+                if len(chosen) >= max_units:
+                    break
+    else:
+        best_is_heading = best_unit.lstrip().startswith("#")
+        neighbor_min_quality = 0.55 if best_is_heading else 0.75
+        for i in range(max(0, best_i - 1), min(len(units), best_i + 2)):
+            unit = units[i][0].strip()
+            if not unit:
+                continue
+            if _is_low_information_text(unit):
+                continue
+            if is_tag_list_line(unit):
+                continue
+            # Keep neighbors only if they add signal or are intrinsically strong.
+            tokens = set(_lexical_tokens(unit))
+            overlap = len(tokens & query_set) if query_set else 0
+            if (
+                i != best_i
+                and query_set
+                and overlap == 0
+                and not is_list_line(unit)
+                and _chunk_quality_score(unit) < neighbor_min_quality
+            ):
+                continue
+            chosen.append(unit)
+            if len(chosen) >= max_units:
+                break
+
+    excerpt = " ".join(chosen).strip()
     if len(excerpt) > max_chars:
         excerpt = excerpt[:max_chars].rstrip()
     return excerpt
@@ -253,6 +647,54 @@ _INFO_STOPWORDS: Set[str] = {
     "was",
     "were",
     "with",
+}
+
+_CONCEPT_STOPLIST: Set[str] = {
+    "articles",
+    "article",
+    "background",
+    "description",
+    "glossary",
+    "key point",
+    "key points",
+    "key operations",
+    "location",
+    "notes",
+    "note",
+    "open questions",
+    "overview",
+    "purpose",
+    "rivalries",
+    "summary",
+    "trade and politics",
+}
+
+_CAP_STOPWORDS: Set[str] = {
+    "a",
+    "an",
+    "any",
+    "all",
+    "each",
+    "every",
+    "here",
+    "his",
+    "her",
+    "its",
+    "my",
+    "no",
+    "none",
+    "our",
+    "some",
+    "that",
+    "the",
+    "their",
+    "them",
+    "these",
+    "they",
+    "this",
+    "those",
+    "there",
+    "your",
 }
 
 
@@ -303,6 +745,118 @@ class _SparseTokenizer:
         return re.findall(r"[a-z0-9_'-]{2,}", text)
 
 
+def _lexical_tokens(text: str) -> List[str]:
+    tokens = _SparseTokenizer.tokenize(text)
+    if not tokens:
+        return []
+    out = []
+    for token in tokens:
+        if len(token) < 3:
+            continue
+        if token in _INFO_STOPWORDS:
+            continue
+        out.append(token)
+    return out
+
+
+_CAP_ANCHOR_RE = re.compile(r"\b[A-Z][A-Za-z0-9'_-]{3,}\b")
+
+
+def _strong_capitalized_anchors(text: str) -> Set[str]:
+    """Extract "topic anchor" tokens from a cursor window (proper-noun-ish capitalized words)."""
+    anchors: Set[str] = set()
+    raw = text or ""
+    for m in _CAP_ANCHOR_RE.finditer(raw):
+        token = (m.group(0) or "").strip()
+        if not token:
+            continue
+        lowered = token.lower()
+        if lowered in _INFO_STOPWORDS or lowered in _CAP_STOPWORDS:
+            continue
+        # Skip tokens that are almost certainly sentence-initial function words ("When", "This", ...).
+        start = int(m.start())
+        j = start - 1
+        while j >= 0 and raw[j] in " \t\r\n\"'“”‘’([{<*-#>":
+            j -= 1
+        if j >= 0 and raw[j] in ".!?":
+            continue
+        anchors.add(token)
+    return anchors
+
+
+def _chunk_quality_score(text: str) -> float:
+    raw = (text or "").strip()
+    if not raw:
+        return 0.0
+    if _is_heading_only(raw):
+        return 0.05
+    if _is_low_information_text(raw):
+        return 0.05
+
+    tokens = _lexical_tokens(raw)
+    token_count = len(tokens)
+    if token_count == 0:
+        return 0.1
+    unique_ratio = float(len(set(tokens))) / float(token_count)
+    length_score = min(1.0, token_count / 50.0)
+
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+", raw) if s.strip()]
+    sentence_score = min(1.0, len(sentences) / 3.0) if sentences else 0.0
+
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    list_lines = sum(1 for line in lines if _LIST_LINE_RE.match(line))
+    list_ratio = float(list_lines) / float(max(1, len(lines)))
+    # Penalize list-heavy blocks, but avoid harshly penalizing a single long, descriptive
+    # numbered/list sentence (common in worldbuilding outlines).
+    if len(lines) == 1 and list_lines == 1 and token_count >= 16:
+        list_penalty = 0.05
+    else:
+        list_penalty = 0.35 * list_ratio
+        # If the block is long and content-dense, the fact that it's list-structured is
+        # less indicative of "low value" than it is for tiny bullet fragments.
+        if token_count > 0:
+            list_penalty *= float(min(1.0, 22.0 / float(token_count)))
+        # Multi-line lists with meaningful lead-in tend to be useful context.
+        if list_lines >= 3 and token_count >= 16:
+            list_penalty *= 0.6
+
+    short_sentence_penalty = 0.0
+    if sentences:
+        avg_len = float(token_count) / float(max(1, len(sentences)))
+        if avg_len < 8.0:
+            short_sentence_penalty = 0.12
+
+    if len(sentences) <= 1 and token_count < 18:
+        length_score *= 0.6
+
+    quality = 0.2 + 0.45 * length_score + 0.2 * unique_ratio + 0.15 * sentence_score
+    quality -= list_penalty
+    quality -= short_sentence_penalty
+
+    if raw.lstrip().startswith("#") and token_count < 25:
+        quality -= 0.15
+
+    if len(sentences) == 1 and token_count < 20:
+        quality -= 0.12
+    elif len(sentences) == 1 and token_count < 30:
+        quality -= 0.08
+
+    comma_ratio = float(raw.count(",")) / float(max(1, token_count))
+    if comma_ratio > 0.18 and len(sentences) <= 1:
+        quality -= 0.12
+
+    if any(line.endswith(":") for line in lines) and len(lines) <= 3 and token_count < 30:
+        # A trailing-colon lead-in is often a useful definition/transition in outlines.
+        if re.search(r"(?i)\\b(can|must|cannot|is|are|was|were|has|have)\\b", raw) and token_count >= 7:
+            quality -= 0.04
+        else:
+            quality -= 0.12
+
+    if token_count < 12:
+        quality = min(quality, 0.45)
+    return float(max(0.0, min(1.0, quality)))
+
+
 class ContextEmbedder:
     """Dense embedder wrapper for realtime semantic context.
 
@@ -312,7 +866,7 @@ class ContextEmbedder:
     def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
         self.model_name = model_name
         self._model = None
-        self._fallback = Embedder(model_name=model_name)
+        self._dim: Optional[int] = None
 
     def _configure_torch_threads(self):
         _configure_torch_threads()
@@ -322,21 +876,40 @@ class ContextEmbedder:
             return
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
-
-            self._configure_torch_threads()
-            self._model = SentenceTransformer(self.model_name)
         except Exception as exc:
-            # Keep app usable even if the optional dependency isn't installed yet.
-            print(f"ContextEmbedder: model unavailable, falling back. Reason: {exc}")
-            self._model = None
+            raise RuntimeError(
+                "ContextEmbedder requires sentence-transformers. "
+                f"Install it and ensure model '{self.model_name}' is available. "
+                f"Reason: {exc}"
+            ) from exc
+
+        self._configure_torch_threads()
+        try:
+            resolved = _resolve_hf_snapshot(self.model_name)
+            self._model = SentenceTransformer(resolved)
+        except Exception as exc:
+            raise RuntimeError(
+                f"ContextEmbedder failed to load model '{self.model_name}': {exc}"
+            ) from exc
+
+        try:
+            self._dim = int(self._model.get_sentence_embedding_dimension())
+        except Exception:
+            vec = self._model.encode(
+                ["dim probe"],
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )[0]
+            self._dim = int(vec.shape[0])
 
     def encode_dense(self, text: str) -> np.ndarray:
         text = text.strip()
-        if not text:
-            return _normalize_dense([0.0] * self._fallback.get_embedding_dim())
         self._load()
         if self._model is None:
-            return _normalize_dense(self._fallback.embed(text))
+            raise RuntimeError("ContextEmbedder model is unavailable.")
+        if not text:
+            return _normalize_dense([0.0] * self.embedding_dim())
         try:
             vec = self._model.encode(
                 [text],
@@ -348,10 +921,14 @@ class ContextEmbedder:
         except TypeError:
             vec = self._model.encode([text], convert_to_numpy=True, show_progress_bar=False)[0]
             return _normalize_dense(vec)
+        except Exception as exc:
+            raise RuntimeError(f"ContextEmbedder encoding failed: {exc}") from exc
 
     def embedding_dim(self) -> int:
-        vec = self.encode_dense("dim probe")
-        return int(vec.shape[0])
+        self._load()
+        if self._dim is None:
+            raise RuntimeError("ContextEmbedder embedding dimension is unavailable.")
+        return int(self._dim)
 
 
 class ContextReranker:
@@ -368,13 +945,21 @@ class ContextReranker:
             return
         try:
             from FlagEmbedding import FlagReranker  # type: ignore
-
-            _configure_torch_threads()
-            self._model = FlagReranker(self.model_name, use_fp16=False)
         except Exception as exc:
-            print(f"ContextReranker: unavailable, disabling. Reason: {exc}")
-            self._model = None
-            self.enabled = False
+            raise RuntimeError(
+                "ContextReranker requires FlagEmbedding. "
+                f"Install it and ensure model '{self.model_name}' is available. "
+                f"Reason: {exc}"
+            ) from exc
+
+        _configure_torch_threads()
+        try:
+            resolved = _resolve_hf_snapshot(self.model_name)
+            self._model = FlagReranker(resolved, use_fp16=False)
+        except Exception as exc:
+            raise RuntimeError(
+                f"ContextReranker failed to load model '{self.model_name}': {exc}"
+            ) from exc
 
     def score(self, query: str, documents: List[str]) -> Optional[List[float]]:
         query = query.strip()
@@ -382,7 +967,7 @@ class ContextReranker:
             return None
         self._load()
         if self._model is None:
-            return None
+            raise RuntimeError("ContextReranker model is unavailable.")
 
         pairs = [(query, d) for d in documents]
         try:
@@ -390,8 +975,7 @@ class ContextReranker:
         except TypeError:
             scores = self._model.compute_score(pairs)  # type: ignore[misc]
         except Exception as exc:
-            print(f"ContextReranker: scoring failed: {exc}")
-            return None
+            raise RuntimeError(f"ContextReranker scoring failed: {exc}") from exc
 
         if isinstance(scores, (float, int)):
             return [float(scores)] * len(documents)
@@ -478,21 +1062,14 @@ class ContextIndex:
         # FAISS index is persisted separately.
 
     def _load(self):
-        try:
-            if os.path.exists(self.metadata_path):
-                with open(self.metadata_path, "r", encoding="utf-8") as f:
-                    payload = json.load(f)
-                self._chunk = payload.get("chunks", {}) or {}
-                self._chunk_int = payload.get("chunk_id_to_int", {}) or {}
-                self._int_chunk = payload.get("int_to_chunk_id", {}) or {}
-                self._concept_label = payload.get("concept_label", {}) or {}
-                print(f"Loaded context index metadata: {len(self._chunk)} chunks")
-        except Exception as exc:
-            print(f"ContextIndex: failed to load metadata: {exc}")
-            self._chunk = {}
-            self._chunk_int = {}
-            self._int_chunk = {}
-            self._concept_label = {}
+        if os.path.exists(self.metadata_path):
+            with open(self.metadata_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            self._chunk = payload.get("chunks", {}) or {}
+            self._chunk_int = payload.get("chunk_id_to_int", {}) or {}
+            self._int_chunk = payload.get("int_to_chunk_id", {}) or {}
+            self._concept_label = payload.get("concept_label", {}) or {}
+            print(f"Loaded context index metadata: {len(self._chunk)} chunks")
 
         self._rebuild_derived()
         self._dense_dirty = True
@@ -529,18 +1106,15 @@ class ContextIndex:
         self._dense_dirty = False
 
     def _save_metadata(self):
-        try:
-            os.makedirs(os.path.dirname(self.metadata_path), exist_ok=True)
-            payload = {
-                "chunks": self._chunk,
-                "chunk_id_to_int": self._chunk_int,
-                "int_to_chunk_id": self._int_chunk,
-                "concept_label": self._concept_label,
-            }
-            with open(self.metadata_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f)
-        except Exception as exc:
-            print(f"ContextIndex: failed to save metadata: {exc}")
+        os.makedirs(os.path.dirname(self.metadata_path), exist_ok=True)
+        payload = {
+            "chunks": self._chunk,
+            "chunk_id_to_int": self._chunk_int,
+            "int_to_chunk_id": self._int_chunk,
+            "concept_label": self._concept_label,
+        }
+        with open(self.metadata_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
 
     def _rebuild_derived(self):
         self._concept_chunks = {}
@@ -696,49 +1270,44 @@ class ContextIndex:
         self._note_prefix_dirty = True
         self._note_prefix_sum = {}
         self._note_prefix_count = {}
-        try:
-            if os.path.exists(self.metadata_path):
-                os.remove(self.metadata_path)
-        except Exception:
-            pass
-        try:
-            if os.path.exists(self.faiss_path):
-                os.remove(self.faiss_path)
-        except Exception:
-            pass
+        if os.path.exists(self.metadata_path):
+            os.remove(self.metadata_path)
+        if os.path.exists(self.faiss_path):
+            os.remove(self.faiss_path)
 
     def _load_faiss(self):
+        if not os.path.exists(self.faiss_path):
+            return
         try:
-            if not os.path.exists(self.faiss_path):
-                return
             import faiss  # type: ignore
+        except Exception as exc:
+            raise RuntimeError(f"FAISS is required for semantic context: {exc}") from exc
 
+        try:
             self._faiss_index = faiss.read_index(self.faiss_path)
             self._faiss_dirty = False
         except Exception as exc:
-            print(f"ContextIndex: failed to load FAISS index: {exc}")
-            self._faiss_index = None
-            self._faiss_dirty = True
+            raise RuntimeError(f"Failed to load FAISS context index: {exc}") from exc
 
     def _save_faiss(self):
         if self._faiss_index is None:
             return
         try:
             import faiss  # type: ignore
+        except Exception as exc:
+            raise RuntimeError(f"FAISS is required for semantic context: {exc}") from exc
 
+        try:
             os.makedirs(os.path.dirname(self.faiss_path), exist_ok=True)
             faiss.write_index(self._faiss_index, self.faiss_path)
         except Exception as exc:
-            print(f"ContextIndex: failed to save FAISS index: {exc}")
+            raise RuntimeError(f"Failed to save FAISS context index: {exc}") from exc
 
     def _rebuild_faiss(self):
         try:
             import faiss  # type: ignore
         except Exception as exc:
-            print(f"ContextIndex: faiss unavailable: {exc}")
-            self._faiss_index = None
-            self._faiss_dirty = False
-            return
+            raise RuntimeError(f"FAISS is required for semantic context: {exc}") from exc
 
         if self._dense_dirty or self._dense_matrix is None:
             self._rebuild_dense_cache()
@@ -796,7 +1365,9 @@ class ContextIndex:
             postings.sort(key=lambda t: t[0])
         self._bm25_dirty = False
 
-    def bm25_search(self, query: str, exclude_note_id: str, top_k: int) -> List[Tuple[str, float]]:
+    def bm25_search(
+        self, query: str, exclude_note_id: Optional[str] = None, top_k: int = 20
+    ) -> List[Tuple[str, float]]:
         query = query.strip()
         if not query:
             return []
@@ -826,7 +1397,9 @@ class ContextIndex:
             idf = math.log((N - df + 0.5) / (df + 0.5) + 1.0)
             for chunk_id, tf in postings:
                 meta = self._chunk.get(chunk_id)
-                if not meta or meta.get("note_id") == exclude_note_id:
+                if not meta:
+                    continue
+                if exclude_note_id and meta.get("note_id") == exclude_note_id:
                     continue
                 dl = float(self._bm25_doc_len.get(chunk_id, 0) or 0)
                 denom = float(tf) + k1 * (1.0 - b + b * (dl / avgdl))
@@ -851,67 +1424,50 @@ class ContextIndex:
                     continue
         return None
 
-    def dense_search(self, query_vec: np.ndarray, exclude_note_id: str, top_k: int) -> List[Tuple[str, float]]:
+    def dense_search(
+        self, query_vec: np.ndarray, exclude_note_id: Optional[str] = None, top_k: int = 20
+    ) -> List[Tuple[str, float]]:
         query_vec = query_vec.astype(np.float32)
         results: List[Tuple[str, float]] = []
 
         # Prefer FAISS/HNSW when available.
         if self._faiss_dirty:
             self._rebuild_faiss()
-        if self._faiss_index is not None:
-            try:
-                k = min(int(top_k) * 3, int(self._faiss_index.ntotal))  # type: ignore[attr-defined]
-                if k <= 0:
-                    return []
-                q = query_vec.reshape(1, -1).astype(np.float32)
-                scores, ids = self._faiss_index.search(q, k)  # type: ignore[union-attr]
-                for score, int_id in zip(scores[0].tolist(), ids[0].tolist()):
-                    if int_id == -1:
-                        continue
-                    chunk_id = self._int_chunk.get(str(int(int_id)))
-                    if not chunk_id:
-                        continue
-                    meta = self._chunk.get(chunk_id)
-                    if not meta or meta.get("note_id") == exclude_note_id:
-                        continue
-                    results.append((chunk_id, float(score)))
-                    if len(results) >= top_k:
-                        break
-                return results
-            except Exception as exc:
-                print(f"ContextIndex: FAISS search failed, falling back: {exc}")
+        if self._faiss_index is None:
+            if self._dense_matrix is None or self._dense_matrix.size == 0:
+                return []
+            raise RuntimeError(
+                "FAISS context index is unavailable. Rebuild the semantic context index."
+            )
 
-        if self._dense_dirty or self._dense_matrix is None:
-            self._rebuild_dense_cache()
+        try:
+            k = min(int(top_k) * 3, int(self._faiss_index.ntotal))  # type: ignore[attr-defined]
+            if k <= 0:
+                return []
+            q = query_vec.reshape(1, -1).astype(np.float32)
+            scores, ids = self._faiss_index.search(q, k)  # type: ignore[union-attr]
+        except Exception as exc:
+            raise RuntimeError(f"FAISS context search failed: {exc}") from exc
 
-        # Fallback: brute force.
-        mat = self._dense_matrix
-        if mat is None or mat.size == 0:
-            return []
-        if int(mat.shape[1]) != int(query_vec.shape[0]):
-            return []
-
-        scores = mat @ query_vec  # (n,)
-        if scores.size == 0:
-            return []
-
-        k = min(int(top_k) * 3, int(scores.shape[0]))
-        if k <= 0:
-            return []
-        idx = np.argpartition(-scores, k - 1)[:k]
-        idx = idx[np.argsort(-scores[idx], kind="stable")]
-
-        for i in idx.tolist():
-            if i < 0 or i >= len(self._dense_chunk_ids):
+        for score, int_id in zip(scores[0].tolist(), ids[0].tolist()):
+            if int_id == -1:
                 continue
-            if self._dense_note_ids[i] == exclude_note_id:
+            chunk_id = self._int_chunk.get(str(int(int_id)))
+            if not chunk_id:
                 continue
-            results.append((self._dense_chunk_ids[i], float(scores[i])))
+            meta = self._chunk.get(chunk_id)
+            if not meta:
+                continue
+            if exclude_note_id and meta.get("note_id") == exclude_note_id:
+                continue
+            results.append((chunk_id, float(score)))
             if len(results) >= top_k:
                 break
         return results
 
-    def sparse_search(self, query_sparse: Dict[str, float], exclude_note_id: str, top_k: int) -> List[Tuple[str, float]]:
+    def sparse_search(
+        self, query_sparse: Dict[str, float], exclude_note_id: Optional[str] = None, top_k: int = 20
+    ) -> List[Tuple[str, float]]:
         if not query_sparse:
             return []
         scores: Dict[str, float] = {}
@@ -921,19 +1477,26 @@ class ContextIndex:
                 continue
             for cid, c_w in postings.items():
                 meta = self._chunk.get(cid)
-                if not meta or meta.get("note_id") == exclude_note_id:
+                if not meta:
+                    continue
+                if exclude_note_id and meta.get("note_id") == exclude_note_id:
                     continue
                 scores[cid] = scores.get(cid, 0.0) + float(q_w) * float(c_w)
         items = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
         return items[:top_k]
 
-    def chunks_for_concepts(self, concept_ids: Iterable[str], exclude_note_id: str) -> Set[str]:
+    def chunks_for_concepts(
+        self, concept_ids: Iterable[str], exclude_note_id: Optional[str] = None
+    ) -> Set[str]:
         out: Set[str] = set()
         for cid in concept_ids:
             for chunk_id in self._concept_chunks.get(cid, set()):
                 meta = self._chunk.get(chunk_id)
-                if meta and meta.get("note_id") != exclude_note_id:
-                    out.add(chunk_id)
+                if not meta:
+                    continue
+                if exclude_note_id and meta.get("note_id") == exclude_note_id:
+                    continue
+                out.add(chunk_id)
         return out
 
     def concept_label(self, concept_id: str) -> Optional[str]:
@@ -1124,7 +1687,7 @@ class ContextService:
             self.index.delete_notes([record.id])
             return 0
 
-        blocks = split_blocks(cleaned)
+        blocks = chunk_blocks(cleaned)
         metas: List[Dict] = []
         for idx, block in enumerate(blocks):
             if not block.text.strip():
@@ -1148,6 +1711,7 @@ class ContextService:
                     "start": block.start,
                     "end": block.end,
                     "text": block.text,
+                    "quality": _chunk_quality_score(block.text),
                     "dense": dense.tolist(),
                     # Lexical retrieval is handled via BM25 built from chunk text.
                     # Keep the legacy field for backwards compatibility with older metadata.
@@ -1194,11 +1758,7 @@ class ContextService:
         if self._autobuild_dim == current_dim:
             return self.index.chunk_count() > 0
         self._autobuild_dim = current_dim
-        try:
-            self.rebuild(records)
-        except Exception as exc:
-            print(f"ContextService: autobuild failed: {exc}")
-            return False
+        self.rebuild(records)
         return self.index.chunk_count() > 0
 
     def warmup(self, records: Iterable[NoteRecord], force_rebuild: bool = False) -> WarmupResponsePayload:
@@ -1216,22 +1776,13 @@ class ContextService:
         if self.reranker.enabled:
             self.reranker._load()
             if self.reranker._model is None:
-                # Don't fail the entire app startup if only the optional reranker is missing.
-                # The system remains fully local and deterministic without it.
-                self.reranker.enabled = False
+                raise RuntimeError(
+                    f"Warmup failed: reranker model is unavailable: {self.reranker.model_name}."
+                )
         # Ensure FAISS/BM25/prefix caches are ready for realtime queries.
-        try:
-            self.index._ensure_bm25()
-        except Exception as exc:
-            print(f"ContextService: BM25 warmup skipped: {exc}")
-        try:
-            self.index._rebuild_faiss()
-        except Exception as exc:
-            print(f"ContextService: FAISS warmup skipped: {exc}")
-        try:
-            self.index._rebuild_note_prefix_cache()
-        except Exception as exc:
-            print(f"ContextService: prefix-cache warmup skipped: {exc}")
+        self.index._ensure_bm25()
+        self.index._rebuild_faiss()
+        self.index._rebuild_note_prefix_cache()
         return WarmupResponsePayload(
             success=True,
             embedder_model=self.embedder.model_name,
@@ -1316,12 +1867,9 @@ class ContextService:
             return None
 
         # Cached/incremental prefix embedding from indexed blocks (full prefix).
-        try:
-            prefix_vec = self.index.prefix_embedding(note_id, block_index)
-            if prefix_vec is not None:
-                return prefix_vec
-        except Exception:
-            pass
+        prefix_vec = self.index.prefix_embedding(note_id, block_index)
+        if prefix_vec is not None:
+            return prefix_vec
 
         # Fallback: avoid expensive long-prefix encoding; only use a short tail.
         tail = prefix_tail[-800:]
@@ -1377,8 +1925,10 @@ class ContextService:
                 docs.append(str(text))
 
         rerank_scores = self.reranker.score(window, docs)
-        if rerank_scores is None or len(rerank_scores) != len(doc_ids):
-            return scored
+        if rerank_scores is None:
+            raise RuntimeError("Reranker returned no scores while enabled.")
+        if len(rerank_scores) != len(doc_ids):
+            raise RuntimeError("Reranker returned mismatched score count.")
 
         raw_by_id: Dict[str, float] = {cid: float(s) for cid, s in zip(doc_ids, rerank_scores)}
         raw_vals = list(raw_by_id.values())
@@ -1409,10 +1959,14 @@ class ContextService:
         return reranked
 
     def context(self, request: ContextRequest) -> List[ContextSnippetPayload]:
-        text = _clean_text(request.text or "")
-        cursor = int(request.cursor_offset)
-        cursor = max(0, min(cursor, len(text)))
-        blocks = split_blocks(text)
+        try:
+            max_results = int(os.environ.get("GRIMOIRE_CONTEXT_MAX_RESULTS", "3"))
+        except Exception:
+            max_results = 3
+        limit = max(1, min(int(request.limit), max_results))
+
+        text, cursor = _normalize_note_text_and_cursor(request.text or "", int(request.cursor_offset))
+        blocks = chunk_blocks(text)
 
         block_index = 0
         for i, block in enumerate(blocks):
@@ -1427,7 +1981,7 @@ class ContextService:
         block_hash = hashlib.sha1((current_block.text or "").encode("utf-8")).hexdigest()[:12]
         cache_key = (request.note_id, block_index, block_hash)
         if self._cache_key == cache_key:
-            return self._cache_value[: request.limit]
+            return self._cache_value[:limit]
 
         prefix = text[:cursor]
         prefix_tail = prefix[-2500:]
@@ -1441,6 +1995,11 @@ class ContextService:
 
         local_cursor = max(0, min(cursor - current_block.start, len(window_raw)))
         window = self._clip_tokens_around_cursor(window_raw, local_cursor, max_tokens=450).strip()
+        window_tokens = _SparseTokenizer.tokenize(window)
+        window_token_count = len(window_tokens)
+        window_lex_tokens = _lexical_tokens(window)
+        window_lex_set = set(window_lex_tokens)
+        strong_anchors = _strong_capitalized_anchors(window)
 
         # Step 2: embed W (cached).
         window_vec, _ = self._compute_window_embeddings(
@@ -1452,20 +2011,52 @@ class ContextService:
         )
         existing_dim = self.index.embedding_dim_guess()
         if existing_dim is not None and existing_dim != int(window_vec.shape[0]):
-            self._cache_key = cache_key
-            self._cache_value = []
-            return []
+            raise RuntimeError(
+                "Context index embedding dimension mismatch. Rebuild the semantic context index."
+            )
 
         # Step 4: prefix penalty uses cached/incremental e(P) when available.
         prefix_vec = self._compute_prefix_embedding(request.note_id, blocks, block_index, prefix_tail)
 
+        # Blend prefix into the query when the window is short to stabilize retrieval.
+        query_vec = window_vec
+        try:
+            short_window_tokens = int(os.environ.get("GRIMOIRE_SHORT_WINDOW_TOKENS", "40"))
+        except Exception:
+            short_window_tokens = 40
+        if window_token_count < short_window_tokens and prefix_vec is not None:
+            try:
+                mix = float(os.environ.get("GRIMOIRE_WINDOW_PREFIX_MIX", "0.18"))
+            except Exception:
+                mix = 0.18
+            mix = max(0.0, min(0.5, mix))
+            if mix > 0.0 and prefix_vec.size == window_vec.size:
+                query_vec = _normalize_dense(window_vec * (1.0 - mix) + prefix_vec * mix)
+
         # Step 3: concepts in W.
-        active_labels = extract_concept_candidates(window)
+        active_labels = extract_concept_candidates(window, min_single_occurrences=2)
         active: List[Tuple[str, str]] = []
         for label in active_labels:
             norm = _normalize_concept_label(label)
             if norm:
                 active.append((norm, label))
+        active_ids = {cid for cid, _ in active}
+        active_label_list = [label for _, label in active]
+        active_label_weights: Dict[str, int] = {}
+        for label in active_label_list:
+            norm = _normalize_concept_label(label)
+            if not norm or len(norm) < 4:
+                continue
+            if norm in _INFO_STOPWORDS:
+                continue
+            if norm in _CONCEPT_STOPLIST:
+                continue
+            if norm in _CAP_STOPWORDS:
+                continue
+            freq = _count_occurrences(window, label)
+            if freq <= 0:
+                freq = 1
+            active_label_weights[norm] = max(active_label_weights.get(norm, 0), freq)
 
         # Grounding and gaps (reader-state).
         grounded: Set[str] = set()
@@ -1483,21 +2074,38 @@ class ContextService:
                     continue
             gaps.add(concept_id)
 
+        # Expand lexical query when the window is too short or concept-heavy.
+        try:
+            min_lex_tokens = int(os.environ.get("GRIMOIRE_MIN_LEX_WINDOW_TOKENS", "12"))
+        except Exception:
+            min_lex_tokens = 12
+        lexical_query = window
+        if window_token_count < min_lex_tokens:
+            tail = prefix_tail[-1200:].strip()
+            if tail:
+                lexical_query = f"{tail}\n{window}".strip()
+        if active_label_list:
+            lexical_query = f"{lexical_query}\n{' '.join(active_label_list[:8])}".strip()
+
         # Step 3: candidate retrieval union.
         dense_top_n = int(os.environ.get("GRIMOIRE_DENSE_TOP_N", "200"))
         bm25_top_n = int(os.environ.get("GRIMOIRE_BM25_TOP_N", "200"))
 
         candidate_ids: Set[str] = set()
         concept_ids_in_w = sorted({cid for cid, _ in active})
-        candidate_ids |= self.index.chunks_for_concepts(concept_ids_in_w, exclude_note_id=request.note_id)
-        candidate_ids |= self.index.chunks_for_concepts(sorted(gaps), exclude_note_id=request.note_id)
+        candidate_ids |= self.index.chunks_for_concepts(concept_ids_in_w)
+        candidate_ids |= self.index.chunks_for_concepts(sorted(gaps))
 
-        for cid, _ in self.index.dense_search(window_vec, exclude_note_id=request.note_id, top_k=dense_top_n):
+        dense_hits = self.index.dense_search(query_vec, top_k=dense_top_n)
+        for cid, _ in dense_hits:
             candidate_ids.add(cid)
             if len(candidate_ids) >= 800:
                 break
 
-        for cid, _ in self.index.bm25_search(window, exclude_note_id=request.note_id, top_k=bm25_top_n):
+        bm25_hits = self.index.bm25_search(lexical_query, top_k=bm25_top_n)
+        bm25_scores = {cid: score for cid, score in bm25_hits}
+        bm25_norms = _min_max_normalize(bm25_scores)
+        for cid, _ in bm25_hits:
             candidate_ids.add(cid)
             if len(candidate_ids) >= 800:
                 break
@@ -1506,30 +2114,59 @@ class ContextService:
         beta = float(os.environ.get("GRIMOIRE_GAP_BETA", "0.55"))
         lambd = float(os.environ.get("GRIMOIRE_PREFIX_LAMBDA", "0.35"))
         mention_bonus = float(os.environ.get("GRIMOIRE_GAP_MENTION_BONUS", "0.12"))
+        lex_weight = float(os.environ.get("GRIMOIRE_LEXICAL_WEIGHT", "0.18"))
+        concept_weight = float(os.environ.get("GRIMOIRE_CONCEPT_OVERLAP_WEIGHT", "0.16"))
+        gap_overlap_weight = float(os.environ.get("GRIMOIRE_GAP_OVERLAP_WEIGHT", "0.1"))
+        active_mention_bonus = float(os.environ.get("GRIMOIRE_ACTIVE_MENTION_BONUS", "0.18"))
+        active_miss_penalty = float(os.environ.get("GRIMOIRE_ACTIVE_MISS_PENALTY", "0.08"))
+        heading_penalty = float(os.environ.get("GRIMOIRE_HEADING_PENALTY", "0.08"))
+        quality_weight = float(os.environ.get("GRIMOIRE_QUALITY_WEIGHT", "0.25"))
+        min_quality = float(os.environ.get("GRIMOIRE_MIN_CHUNK_QUALITY", "0.5"))
+        same_note_distance_weight = float(os.environ.get("GRIMOIRE_SAME_NOTE_DISTANCE_WEIGHT", "0.6"))
         max_candidates = int(os.environ.get("GRIMOIRE_MAX_CANDIDATES", "500"))
-        mu = float(os.environ.get("GRIMOIRE_MMR_MU", "0.35"))
+        mu = float(os.environ.get("GRIMOIRE_MMR_MU", "0.0"))
         coverage_weight = float(os.environ.get("GRIMOIRE_COVERAGE_WEIGHT", "0.08"))
+        note_repeat_penalty = float(os.environ.get("GRIMOIRE_NOTE_REPEAT_PENALTY", "0.0"))
 
         scored: List[Tuple[str, float, Dict]] = []
+        current_chunk_id = f"{request.note_id}:{current_block.start}:{current_block.end}:{block_index}"
         gap_list = sorted(gaps)
+        cross_note_penalty = float(os.environ.get("GRIMOIRE_CROSS_NOTE_PENALTY", "0.06"))
         for cid in sorted(candidate_ids):
+            # Avoid echoing what the user is currently reading.
+            if cid == current_chunk_id:
+                continue
             meta = self.index.get_chunk(cid)
             if not meta:
                 continue
-            if _is_low_information_text(str(meta.get("text") or "")):
+            # Semantic backlinks should always point to other notes.
+            note_id = str(meta.get("note_id") or "")
+            if note_id == request.note_id:
+                continue
+            meta_text = str(meta.get("text") or "")
+            if _is_low_information_text(meta_text):
+                continue
+            quality = meta.get("quality")
+            if not isinstance(quality, (float, int)):
+                raise RuntimeError(
+                    "Context chunk quality is missing. Rebuild the semantic context index to populate it."
+                )
+            if min_quality and float(quality) < min_quality:
                 continue
             vec = _normalize_dense(meta.get("dense") or [])
             if vec.size == 0 or int(vec.shape[0]) != int(window_vec.shape[0]):
                 continue
-            rel = _dot(vec, window_vec)
+            rel = _dot(vec, query_vec)
 
             gap_support = 0.0
             gap_best: Optional[str] = None
-            mentions_gap = False
             meta_concepts = set(meta.get("concepts", []) or [])
+            active_overlap = len(meta_concepts & active_ids)
+            gap_overlap = len(meta_concepts & gaps)
+            active_ratio = float(active_overlap) / float(max(1, len(active_ids))) if active_ids else 0.0
+            gap_ratio = float(gap_overlap) / float(max(1, len(gaps))) if gaps else 0.0
+            mentions_gap = gap_overlap > 0
             for gap_id in gap_list:
-                if gap_id in meta_concepts:
-                    mentions_gap = True
                 centroid = self.index.concept_centroid(gap_id)
                 if centroid is None:
                     continue
@@ -1538,12 +2175,87 @@ class ContextService:
                     gap_support = val
                     gap_best = gap_id
 
+            bm25_norm = float(bm25_norms.get(cid, 0.0)) if bm25_norms else 0.0
+            lex_overlap = 0.0
+            if window_lex_set:
+                chunk_tokens = _lexical_tokens(meta_text)
+                if chunk_tokens:
+                    overlap = len(window_lex_set.intersection(chunk_tokens))
+                    lex_overlap = float(overlap) / float(max(1, len(window_lex_set)))
+            lexical = max(bm25_norm, lex_overlap)
+
+            active_label_hits = 0
+            if active_label_weights:
+                lower_text = meta_text.lower()
+                for label, weight in active_label_weights.items():
+                    if label in lower_text:
+                        active_label_hits += weight
+
+            # Cross-note gating: keep quality high, but avoid "no results" when a note has
+            # strong semantic matches with weak lexical overlap (common in prose).
+            if note_id and note_id != request.note_id:
+                min_cross_lex = float(os.environ.get("GRIMOIRE_CROSS_NOTE_MIN_LEXICAL", "0.06"))
+                min_cross_rel = float(os.environ.get("GRIMOIRE_CROSS_NOTE_MIN_RELEVANCE", "0.78"))
+                has_concept_link = bool(active_overlap or gap_overlap)
+
+                # If we have strong anchors (proper-noun-ish terms), require at least one match.
+                if strong_anchors:
+                    lowered_text = meta_text.lower()
+                    if not any(anchor.lower() in lowered_text for anchor in strong_anchors):
+                        # No anchor match: only allow if the dense similarity is extremely high.
+                        if rel < (min_cross_rel + 0.06):
+                            continue
+
+                # Otherwise, accept cross-note candidates if they pass *any* strong signal gate.
+                if not (
+                    (min_cross_lex and lexical >= min_cross_lex)
+                    or has_concept_link
+                    or (active_label_hits > 0)
+                    or (min_cross_rel and rel >= min_cross_rel)
+                ):
+                    continue
             redundancy = _dot(vec, prefix_vec) if prefix_vec is not None else 0.0
-            base = rel - lambd * redundancy + beta * gap_support + (mention_bonus if mentions_gap else 0.0)
+            redundancy_penalty = float(lambd) * float(redundancy)
+            # If a candidate is lexically on-topic for the current cursor window,
+            # prefer relevance over "don't repeat what the reader already saw".
+            if lexical:
+                redundancy_penalty *= float(max(0.0, 1.0 - 0.6 * float(min(1.0, lexical))))
+            base = rel - redundancy_penalty + beta * gap_support + (mention_bonus if mentions_gap else 0.0)
+            base += lex_weight * lexical + concept_weight * active_ratio + gap_overlap_weight * gap_ratio
+            if active_label_hits:
+                base += active_mention_bonus * float(active_label_hits)
+            elif active_label_weights and active_miss_penalty:
+                base -= active_miss_penalty
+            if heading_penalty and _is_heading_only(meta_text):
+                base -= heading_penalty
+            if quality_weight:
+                base += quality_weight * float(quality)
+
+            same_note_dist = None
+            same_note_bonus = 0.0
+            if same_note_distance_weight and note_id == request.note_id:
+                cand_idx = _chunk_block_index(str(meta.get("chunk_id") or ""))
+                if cand_idx is not None:
+                    same_note_dist = abs(int(cand_idx) - int(block_index))
+                    same_note_bonus = float(same_note_distance_weight) / float(1.0 + same_note_dist)
+                    base += same_note_bonus
             debug = {
                 "relevance": rel,
                 "gap_support": gap_support,
                 "redundancy": redundancy,
+                "redundancy_penalty": redundancy_penalty,
+                "lexical": lexical,
+                "bm25_norm": bm25_norm,
+                "lex_overlap": lex_overlap,
+                "active_label_hits": active_label_hits,
+                "active_overlap": active_overlap,
+                "gap_overlap": gap_overlap,
+                "active_ratio": active_ratio,
+                "gap_ratio": gap_ratio,
+                "quality": quality,
+                "same_note_dist": same_note_dist,
+                "same_note_bonus": same_note_bonus,
+                "current_chunk": cid == current_chunk_id,
                 "base": base,
                 "gap_concept_id": gap_best,
                 "mentions_gap": mentions_gap,
@@ -1566,8 +2278,9 @@ class ContextService:
         remaining = scored
         covered_gaps: Set[str] = set()
         seen_excerpt_keys: Set[str] = set()
+        selected_note_ids: Set[str] = set()
 
-        while remaining and len(selected) < request.limit:
+        while remaining and len(selected) < limit:
             best_idx = 0
             best_score = None
             for idx, (cid, base, debug) in enumerate(remaining[:250]):
@@ -1582,7 +2295,10 @@ class ContextService:
                 candidate_concepts = set(meta.get("concepts", []) or [])
                 newly_covered = len((candidate_concepts & gaps) - covered_gaps)
                 cover_bonus = coverage_weight * float(newly_covered)
-                mmr = combined + cover_bonus - mu * max_red
+                note_id = str(meta.get("note_id") or "")
+                note_penalty = note_repeat_penalty if note_id and note_id in selected_note_ids else 0.0
+                cross_penalty = cross_note_penalty if note_id and note_id != request.note_id else 0.0
+                mmr = combined + cover_bonus - mu * max_red - note_penalty - cross_penalty
                 if best_score is None or mmr > best_score:
                     best_score = mmr
                     best_idx = idx
@@ -1595,6 +2311,8 @@ class ContextService:
             vec = _normalize_dense(meta.get("dense") or [])
             selected_vecs.append(vec)
             covered_gaps |= (set(meta.get("concepts", []) or []) & gaps)
+            if meta.get("note_id"):
+                selected_note_ids.add(str(meta.get("note_id")))
 
             concept_title = None
             gap_best = debug.get("gap_concept_id")
@@ -1605,8 +2323,26 @@ class ContextService:
             # then normalize across the final selected set.
             raw_score = float(debug.get("combined", base))
 
-            excerpt = _sentences_excerpt(meta.get("text") or "")
+            meta_text = str(meta.get("text") or "")
+            if cid == current_chunk_id:
+                excerpt = _query_aware_excerpt(
+                    meta_text,
+                    window_lex_set,
+                    max_units=3,
+                    max_chars=600,
+                    cursor_char=local_cursor,
+                    avoid_radius=int(os.environ.get("GRIMOIRE_EXCERPT_AVOID_RADIUS", "420")),
+                    hard_avoid=True,
+                )
+            else:
+                excerpt = _query_aware_excerpt(meta_text, window_lex_set, max_units=3, max_chars=600)
             if _is_low_information_text(excerpt):
+                continue
+            min_excerpt_quality = float(os.environ.get("GRIMOIRE_MIN_EXCERPT_QUALITY", "0.35"))
+            excerpt_eval = excerpt
+            if excerpt_eval.lstrip().startswith("#"):
+                excerpt_eval = re.sub(r"(?m)^[ \t]{0,3}#{1,6}[ \t]+", "", excerpt_eval).strip()
+            if min_excerpt_quality and _chunk_quality_score(excerpt_eval) < float(min_excerpt_quality):
                 continue
             ex_key = _excerpt_key(excerpt)
             # Avoid showing multiple identical excerpts (often from short headings/boilerplate).

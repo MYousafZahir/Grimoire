@@ -42,7 +42,7 @@ final class BacklinksStore: ObservableObject {
         noteId: String,
         text: String,
         cursorOffset: Int,
-        limit: Int = 7,
+        limit: Int = 3,
         titleProvider: @escaping (String) -> String?
     ) {
         // Keep text untrimmed so `cursorOffset` (computed against the same string)
