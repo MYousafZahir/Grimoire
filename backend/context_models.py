@@ -13,7 +13,7 @@ class ContextRequest(BaseModel):
     note_id: str = Field(alias="note_id")
     text: str
     cursor_offset: int = Field(alias="cursor_offset", ge=0)
-    limit: int = Field(default=7, ge=1, le=20)
+    limit: int = Field(default=3, ge=1, le=20)
     include_debug: bool = Field(default=False, alias="include_debug")
 
 

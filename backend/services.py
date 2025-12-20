@@ -48,13 +48,9 @@ class SearchService:
         results: List[SearchHitPayload] = []
 
         for embedding in embeddings:
-            try:
-                matches = self.indexer.search(
-                    embedding, exclude_note_id=request.note_id, top_k=5
-                )
-            except Exception as exc:  # Defensive: keep search available even if index is unavailable
-                print(f"Search warning: {exc}")
-                continue
+            matches = self.indexer.search(
+                embedding, exclude_note_id=request.note_id, top_k=5
+            )
 
             for match in matches:
                 results.append(

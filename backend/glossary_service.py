@@ -276,29 +276,40 @@ _SPACY_NLP = None
 _SPACY_LOCK = threading.Lock()
 
 
-def _load_spacy() -> object | None:
-    """Load spaCy model lazily. Returns None if unavailable."""
+def _load_spacy() -> object:
+    """Load spaCy model lazily. Raises if unavailable."""
     global _SPACY_NLP
     with _SPACY_LOCK:
         if _SPACY_NLP is not None:
             return _SPACY_NLP
         try:
             import spacy  # type: ignore
+        except ImportError as exc:
+            raise RuntimeError(
+                "spaCy is required for glossary extraction. Install it and the model to proceed."
+            ) from exc
 
+        model_name = os.environ.get("GRIMOIRE_SPACY_MODEL", "en_core_web_sm").strip() or "en_core_web_sm"
+
+        def load_model() -> object:
             try:
-                _SPACY_NLP = spacy.load("en_core_web_sm", exclude=["ner"])
+                return spacy.load(model_name, exclude=["ner"])
             except TypeError:
                 # Older spaCy versions don't support `exclude`.
-                _SPACY_NLP = spacy.load("en_core_web_sm")
-            try:
-                _SPACY_NLP.max_length = max(int(getattr(_SPACY_NLP, "max_length", 1_000_000)), 5_000_000)
-            except Exception:
-                pass
-            return _SPACY_NLP
-        except Exception as exc:
-            print(f"Glossary: spaCy unavailable (en_core_web_sm). Falling back. Reason: {exc}")
-            _SPACY_NLP = None
-            return None
+                return spacy.load(model_name)
+
+        try:
+            _SPACY_NLP = load_model()
+        except OSError as exc:
+            raise RuntimeError(
+                f"spaCy model '{model_name}' is unavailable. Install it to use the glossary."
+            ) from exc
+
+        try:
+            _SPACY_NLP.max_length = max(int(getattr(_SPACY_NLP, "max_length", 1_000_000)), 5_000_000)
+        except Exception:
+            pass
+        return _SPACY_NLP
 
 
 _HEADING_LINE_RE = re.compile(r"(?m)^[ \t]{0,3}#{1,6}[ \t]+(.+?)\s*$")
@@ -1103,8 +1114,8 @@ class GlossaryService:
     def _extract_note(self, note_id: str, cleaned: str, note_hash: str) -> Optional[NoteExtract]:
         embedder = self.embedder or ContextEmbedder("BAAI/bge-small-en-v1.5")
         nlp = _load_spacy()
-        self._last_extract_spacy_available = nlp is not None
-        used_spacy = False
+        self._last_extract_spacy_available = True
+        used_spacy = True
 
         code_ranges = _code_fence_ranges(cleaned)
         masked = _mask_code_blocks_keep_offsets(cleaned, code_ranges)
@@ -1118,100 +1129,40 @@ class GlossaryService:
         sentences: List[SentenceRecord] = []
         sentence_by_range: List[Tuple[int, int, str, List[float], str, Optional[str]]] = []
 
-        if nlp is None:
-            # Fallback: split each block into best-effort sentences.
-            for block, chunk_id in blocks_with_ids:
-                span_start = int(block.start)
-                span_end = int(block.end)
-                if _is_inside_ranges(span_start, span_end, code_ranges):
-                    continue
-                span = cleaned[span_start:span_end] or ""
-                for start, end, text in _fallback_sentences_with_offsets(span, span_start):
-                    if not text:
-                        continue
-                    heading = _heading_for_offset(headings, start)
-                    dense = embedder.encode_dense(text).tolist()
-                    sid = str(uuid.uuid5(_GLOSSARY_NAMESPACE, f"{note_id}:sent:{start}:{end}"))
-                    sentences.append(
-                        SentenceRecord(
-                            sentence_id=sid,
-                            note_id=note_id,
-                            start=start,
-                            end=end,
-                            text=text,
-                            dense=dense,
-                            chunk_id=chunk_id,
-                            heading=heading,
-                        )
-                    )
-                    sentence_by_range.append((start, end, sid, dense, text, heading))
-        else:
-            try:
-                doc = nlp(parse_text)
-            except Exception as exc:
-                print(f"Glossary: spaCy parse failed; fallback. Reason: {exc}")
-                doc = None
+        try:
+            doc = nlp(parse_text)
+        except Exception as exc:
+            raise RuntimeError(f"Glossary: spaCy parse failed: {exc}") from exc
 
-            if doc is None:
-                # Fallback: split each block into best-effort sentences.
-                for block, chunk_id in blocks_with_ids:
-                    span_start = int(block.start)
-                    span_end = int(block.end)
-                    if _is_inside_ranges(span_start, span_end, code_ranges):
-                        continue
-                    span = cleaned[span_start:span_end] or ""
-                    for start, end, text in _fallback_sentences_with_offsets(span, span_start):
-                        if not text:
-                            continue
-                        heading = _heading_for_offset(headings, start)
-                        dense = embedder.encode_dense(text).tolist()
-                        sid = str(uuid.uuid5(_GLOSSARY_NAMESPACE, f"{note_id}:sent:{start}:{end}"))
-                        sentences.append(
-                            SentenceRecord(
-                                sentence_id=sid,
-                                note_id=note_id,
-                                start=start,
-                                end=end,
-                                text=text,
-                                dense=dense,
-                                chunk_id=chunk_id,
-                                heading=heading,
-                            )
-                        )
-                        sentence_by_range.append((start, end, sid, dense, text, heading))
-                doc = None
-            else:
-                used_spacy = True
-
-            for sent in getattr(doc, "sents", []):
-                start = int(getattr(sent, "start_char", 0))
-                end = int(getattr(sent, "end_char", 0))
-                if end <= start:
-                    continue
-                if _is_inside_ranges(start, end, code_ranges):
-                    continue
-                raw = (cleaned[start:end] or "").strip()
-                if not raw:
-                    continue
-                chunk_id = _chunk_id_for_offset(blocks_with_ids, start)
-                if chunk_id is None:
-                    continue
-                heading = _heading_for_offset(headings, start)
-                dense = embedder.encode_dense(raw).tolist()
-                sid = str(uuid.uuid5(_GLOSSARY_NAMESPACE, f"{note_id}:sent:{start}:{end}"))
-                sentences.append(
-                    SentenceRecord(
-                        sentence_id=sid,
-                        note_id=note_id,
-                        start=start,
-                        end=end,
-                        text=raw,
-                        dense=dense,
-                        chunk_id=chunk_id,
-                        heading=heading,
-                    )
+        for sent in getattr(doc, "sents", []):
+            start = int(getattr(sent, "start_char", 0))
+            end = int(getattr(sent, "end_char", 0))
+            if end <= start:
+                continue
+            if _is_inside_ranges(start, end, code_ranges):
+                continue
+            raw = (cleaned[start:end] or "").strip()
+            if not raw:
+                continue
+            chunk_id = _chunk_id_for_offset(blocks_with_ids, start)
+            if chunk_id is None:
+                continue
+            heading = _heading_for_offset(headings, start)
+            dense = embedder.encode_dense(raw).tolist()
+            sid = str(uuid.uuid5(_GLOSSARY_NAMESPACE, f"{note_id}:sent:{start}:{end}"))
+            sentences.append(
+                SentenceRecord(
+                    sentence_id=sid,
+                    note_id=note_id,
+                    start=start,
+                    end=end,
+                    text=raw,
+                    dense=dense,
+                    chunk_id=chunk_id,
+                    heading=heading,
                 )
-                sentence_by_range.append((start, end, sid, dense, raw, heading))
+            )
+            sentence_by_range.append((start, end, sid, dense, raw, heading))
 
         if not sentences:
             self._last_extract_used_spacy = False
@@ -1219,13 +1170,10 @@ class GlossaryService:
 
         mentions: List[MentionRecord] = []
 
-        if nlp is not None:
-            try:
-                doc = nlp(parse_text)
-            except Exception:
-                doc = None
-        else:
-            doc = None
+        try:
+            doc = nlp(parse_text)
+        except Exception as exc:
+            raise RuntimeError(f"Glossary: spaCy parse failed: {exc}") from exc
 
         if doc is not None:
             # Build fast lookup of sentence spans for assigning mentions.
@@ -1424,6 +1372,7 @@ class GlossaryService:
                 seen_ranges.add((start, end))
 
         if doc is None:
+            raise RuntimeError("Glossary: spaCy returned no Doc; fallbacks are disabled.")
             # Fallback mention extraction (no spaCy): conservative phrase extraction.
             # Use spaces/tabs only between tokens to avoid crossing newlines/headings.
             cap_re = re.compile(r"\b(?:[A-Z][A-Za-z0-9'_-]*)(?:[ \t]+[A-Z][A-Za-z0-9'_-]*){0,4}\b")
@@ -1645,9 +1594,6 @@ class GlossaryService:
                         head_pos=_fallback_head_pos(surface, sentence_start=sentence_start),
                     )
 
-        # If the initial sentence pass used spaCy but mention pass fell back, treat the extract as fallback.
-        if used_spacy and doc is None:
-            used_spacy = False
         self._last_extract_used_spacy = bool(used_spacy)
         return NoteExtract(note_id=note_id, text_hash=note_hash, sentences=sentences, mentions=mentions)
 

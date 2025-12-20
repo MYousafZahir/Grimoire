@@ -6,7 +6,7 @@ struct SettingsView: View {
     @AppStorage("backendURL") private var backendURL: String = "http://127.0.0.1:8000"
     @AppStorage("debounceDelay") private var debounceDelay: Double = 0.5
     @AppStorage("chunkSize") private var chunkSize: String = "300"
-    @AppStorage("maxBacklinks") private var maxBacklinks: String = "10"
+    @AppStorage("maxBacklinks") private var maxBacklinks: String = "3"
     @AppStorage("autoSave") private var autoSave: Bool = true
     @AppStorage("autoSaveInterval") private var autoSaveInterval: Double = 2.0
     @AppStorage("showPreview") private var showPreview: Bool = false
