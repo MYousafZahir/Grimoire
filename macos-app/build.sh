@@ -10,6 +10,18 @@ cd "$SCRIPT_DIR"
 
 echo "🔨 Building Grimoire macOS app..."
 
+# Ensure Xcode/SwiftPM caches are writable in sandboxed environments.
+LOCAL_HOME="${SCRIPT_DIR}/.home"
+mkdir -p "${LOCAL_HOME}/Library/Caches" "${LOCAL_HOME}/Library/Logs" "${LOCAL_HOME}/.cache/clang/ModuleCache"
+export HOME="${LOCAL_HOME}"
+export CFFIXED_USER_HOME="${LOCAL_HOME}"
+export XDG_CACHE_HOME="${LOCAL_HOME}/.cache"
+export TMPDIR="${SCRIPT_DIR}/.tmp"
+mkdir -p "${TMPDIR}"
+
+CACHE_ROOT="${SCRIPT_DIR}/.cache/xcode"
+mkdir -p "${CACHE_ROOT}/clang-module-cache" "${CACHE_ROOT}/swift-module-cache"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -31,6 +43,14 @@ else
     # If a regenerated project is missing newer files (e.g. glossary), rebuild it.
     if ! grep -q "GlossaryView.swift" "Grimoire.xcodeproj/project.pbxproj" 2>/dev/null; then
         echo -e "${YELLOW}⚠ Xcode project is missing glossary sources. Regenerating project...${NC}"
+        rm -rf "Grimoire.xcodeproj" 2>/dev/null || true
+        ./create_xcode_project.sh
+    elif ! grep -q "AttachmentRepository.swift" "Grimoire.xcodeproj/project.pbxproj" 2>/dev/null; then
+        echo -e "${YELLOW}⚠ Xcode project is missing attachment sources. Regenerating project...${NC}"
+        rm -rf "Grimoire.xcodeproj" 2>/dev/null || true
+        ./create_xcode_project.sh
+    elif ! grep -q "PasteboardImageExtractor.swift" "Grimoire.xcodeproj/project.pbxproj" 2>/dev/null; then
+        echo -e "${YELLOW}⚠ Xcode project is missing pasteboard sources. Regenerating project...${NC}"
         rm -rf "Grimoire.xcodeproj" 2>/dev/null || true
         ./create_xcode_project.sh
     fi
@@ -63,6 +83,8 @@ if xcodebuild \
     -destination "platform=macOS" \
     -quiet \
     "${PKG_FLAGS[@]}" \
+    CLANG_MODULE_CACHE_PATH="${CACHE_ROOT}/clang-module-cache" \
+    SWIFT_MODULE_CACHE_PATH="${CACHE_ROOT}/swift-module-cache" \
     build; then
 
     echo -e "${GREEN}✅ Build successful!${NC}"
@@ -99,6 +121,8 @@ if xcodebuild \
 else
     echo -e "${RED}❌ Build failed${NC}"
     echo -e "${YELLOW}Try these steps:${NC}"
+    echo -e "  • If you see ${BLUE}Operation not permitted${NC} for ${BLUE}~/.cache${NC} or ${BLUE}~/Library/Caches${NC}, your environment is sandboxed and Xcode can't write its caches."
+    echo -e "    Build from a normal Terminal session, or run this build with full filesystem access."
     echo -e "  1. Open project in Xcode: ${BLUE}open Grimoire.xcodeproj${NC}"
     echo -e "  2. Check for missing files in project navigator"
     echo -e "  3. Build manually with Cmd+R"

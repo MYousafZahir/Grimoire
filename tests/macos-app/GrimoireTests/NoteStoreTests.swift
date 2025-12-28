@@ -2,12 +2,16 @@ import XCTest
 
 @testable import Grimoire
 
+@MainActor
 final class NoteStoreTests: XCTestCase {
     func testInitialStateIsEmpty() {
         let store = NoteStore(repository: StubNoteRepository())
-        XCTAssertTrue(store.tree.isEmpty)
-        XCTAssertNil(store.selection)
-        XCTAssertEqual(store.currentContent, "")
+        let tree = store.tree
+        let selection = store.selection
+        let currentContent = store.currentContent
+        XCTAssertTrue(tree.isEmpty)
+        XCTAssertNil(selection)
+        XCTAssertEqual(currentContent, "")
     }
 
     func testSampleTreeShape() {
@@ -71,6 +75,10 @@ private final class StubNoteRepository: NoteRepository {
 
     func openProject(path: String) async throws -> ProjectInfo {
         ProjectInfo(name: (path as NSString).lastPathComponent, path: path, isActive: true)
+    }
+
+    func rebuildGlossary() async throws -> GlossaryRebuildResult {
+        GlossaryRebuildResult(terms: 0, spacyNotes: 0, fallbackNotes: 0)
     }
 
     func fetchTree() async throws -> [NoteNode] { tree }

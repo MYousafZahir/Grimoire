@@ -2,11 +2,14 @@ import XCTest
 
 @testable import Grimoire
 
+@MainActor
 final class BacklinksStoreTests: XCTestCase {
     func testInitialState() {
         let store = BacklinksStore(repository: StubSearchRepository())
-        XCTAssertTrue(store.results.isEmpty)
-        XCTAssertFalse(store.isSearching)
+        let results = store.results
+        let isSearching = store.isSearching
+        XCTAssertTrue(results.isEmpty)
+        XCTAssertFalse(isSearching)
     }
 
     func testSearchPopulatesResults() async {
@@ -33,9 +36,11 @@ final class BacklinksStoreTests: XCTestCase {
 
         try? await Task.sleep(nanoseconds: 600_000_000)
 
-        XCTAssertEqual(store.results.count, 1)
-        XCTAssertEqual(store.results.first?.noteTitle, "Title")
-        XCTAssertFalse(store.isSearching)
+        let results = store.results
+        let isSearching = store.isSearching
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.noteTitle, "Title")
+        XCTAssertFalse(isSearching)
     }
 }
 

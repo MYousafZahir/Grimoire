@@ -1,0 +1,16 @@
+{
+  "simple_note": {
+    "type": "note",
+    "id": "simple_note"
+  },
+  "folder": {
+    "type": "folder",
+    "subfolder": {
+      "type": "folder",
+      "nested_note": {
+        "type": "note",
+        "id": "folder/subfolder/nested_note"
+      }
+    }
+  }
+}

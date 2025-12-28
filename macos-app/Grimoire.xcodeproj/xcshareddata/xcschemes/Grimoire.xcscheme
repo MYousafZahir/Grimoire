@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "GRIM_MAIN"
+               BlueprintIdentifier = "GRIM_TARGET_MAIN"
                BuildableName = "Grimoire.app"
                BlueprintName = "Grimoire"
                ReferencedContainer = "container:Grimoire.xcodeproj">
@@ -28,6 +28,16 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "GRIM_TARGET_TESTS"
+               BuildableName = "GrimoireTests.xctest"
+               BlueprintName = "GrimoireTests"
+               ReferencedContainer = "container:Grimoire.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
@@ -44,7 +54,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "GRIM_MAIN"
+               BlueprintIdentifier = "GRIM_TARGET_MAIN"
                BuildableName = "Grimoire.app"
                BlueprintName = "Grimoire"
                ReferencedContainer = "container:Grimoire.xcodeproj">
@@ -63,7 +73,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "GRIM_MAIN"
+               BlueprintIdentifier = "GRIM_TARGET_MAIN"
                BuildableName = "Grimoire.app"
                BlueprintName = "Grimoire"
                ReferencedContainer = "container:Grimoire.xcodeproj">

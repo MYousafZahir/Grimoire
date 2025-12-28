@@ -26,10 +26,13 @@ class TestIndexerSimple:
         self.temp_dir = tempfile.mkdtemp()
         self.index_path = os.path.join(self.temp_dir, "faiss.index")
         self.metadata_path = os.path.join(self.temp_dir, "index.json")
+        self.note_tree_path = os.path.join(self.temp_dir, "note_tree.json")
 
         # Create indexer with test paths
         self.indexer = Indexer(
-            index_path=self.index_path, metadata_path=self.metadata_path
+            index_path=self.index_path,
+            metadata_path=self.metadata_path,
+            note_tree_path=self.note_tree_path,
         )
 
     def teardown_method(self):

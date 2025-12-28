@@ -9,6 +9,18 @@ cd "$SCRIPT_DIR"
 
 echo "Building Grimoire..."
 
+# Ensure Xcode/SwiftPM caches are writable in sandboxed environments.
+LOCAL_HOME="${SCRIPT_DIR}/.home"
+mkdir -p "${LOCAL_HOME}/Library/Caches" "${LOCAL_HOME}/Library/Logs" "${LOCAL_HOME}/.cache/clang/ModuleCache"
+export HOME="${LOCAL_HOME}"
+export CFFIXED_USER_HOME="${LOCAL_HOME}"
+export XDG_CACHE_HOME="${LOCAL_HOME}/.cache"
+export TMPDIR="${SCRIPT_DIR}/.tmp"
+mkdir -p "${TMPDIR}"
+
+CACHE_ROOT="${SCRIPT_DIR}/.cache/xcode"
+mkdir -p "${CACHE_ROOT}/clang-module-cache" "${CACHE_ROOT}/swift-module-cache"
+
 # Clean
 if [ -d "Build/SourcePackages" ]; then
     rm -rf "Build/Build" "Build/Index" "Build/Logs" "Build/Intermediates.noindex" 2>/dev/null || true
@@ -33,6 +45,8 @@ xcodebuild \
     -destination "platform=macOS" \
     -quiet \
     "${PKG_FLAGS[@]}" \
+    CLANG_MODULE_CACHE_PATH="${CACHE_ROOT}/clang-module-cache" \
+    SWIFT_MODULE_CACHE_PATH="${CACHE_ROOT}/swift-module-cache" \
     build
 
 # Check result
@@ -48,5 +62,6 @@ if [ $? -eq 0 ]; then
     fi
 else
     echo "❌ Build failed"
+    echo "If you see 'Operation not permitted' for ~/.cache or ~/Library/Caches, your environment is sandboxed and Xcode can't write its caches."
     exit 1
 fi

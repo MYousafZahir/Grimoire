@@ -1,12 +1,17 @@
 import SwiftUI
 import AppKit
+import ImageIO
 import MarkdownUI
 import NaturalLanguage
+import NetworkImage
+import UniformTypeIdentifiers
 
 struct EditorView: View {
     @EnvironmentObject private var noteStore: NoteStore
     @EnvironmentObject private var backlinksStore: BacklinksStore
     @Binding var selectedNoteId: String?
+
+    @AppStorage("backendURL") private var backendURL: String = "http://127.0.0.1:8000"
 
     @State private var noteContent: String = ""
     @State private var showPreview: Bool = false
@@ -21,11 +26,16 @@ struct EditorView: View {
     @State private var chunkHeights: [UUID: CGFloat] = [:]
     @State private var highlightedChunkId: UUID? = nil
     @State private var contentNoteId: String? = nil
+    @State private var imageUploadError: String? = nil
 
     private var isFolderSelected: Bool {
         guard let selectedNoteId else { return false }
         return noteStore.isFolder(id: selectedNoteId)
             || noteStore.currentNoteKind == .folder
+    }
+
+    private var resolvedBackendURL: URL? {
+        URL(string: backendURL)
     }
 
     var body: some View {
@@ -60,8 +70,8 @@ struct EditorView: View {
 
             if showPreview, selectedNoteId != nil, !isFolderSelected {
                 ScrollView {
-                    Markdown(markdownForRendering(noteContent))
-                        .markdownTheme(.docC)
+                    Markdown(markdownForRendering(noteContent), imageBaseURL: resolvedBackendURL)
+                        .grimoireMarkdownStyle()
                         .textSelection(.enabled)
                         .padding()
                 }
@@ -69,8 +79,8 @@ struct EditorView: View {
                 if activeChunkId == nil {
                     ScrollView {
                         ZStack(alignment: .topLeading) {
-                            Markdown(markdownForRendering(noteContent))
-                                .markdownTheme(.docC)
+                            Markdown(markdownForRendering(noteContent), imageBaseURL: resolvedBackendURL)
+                                .grimoireMarkdownStyle()
                                 .allowsHitTesting(false)
 
                             SelectionTextOverlay(
@@ -103,6 +113,7 @@ struct EditorView: View {
                                     onActivate: { activateChunk(chunk.id) },
                                     overlayText: overlayText,
                                     overlayVisibleToMarkdown: overlayMapping,
+                                    imageBaseURL: resolvedBackendURL,
                                     onActivateAtMarkdownIndex: { markdownIndex in
                                         activateChunkAtIndex(chunkId: chunk.id, markdownIndex: markdownIndex)
                                     },
@@ -114,6 +125,8 @@ struct EditorView: View {
                                     onAutoChunk: { text, cursor in
                                         autoChunkIfNeeded(chunkId: chunk.id, newText: text, localUTF16Cursor: cursor)
                                     },
+                                    onUploadImage: uploadImage,
+                                    onUploadError: { message in imageUploadError = message },
                                     textBinding: binding(for: chunk)
                                 )
                                     .id(chunk.id)
@@ -175,6 +188,11 @@ struct EditorView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .alert("Image Upload Failed", isPresented: Binding(get: { imageUploadError != nil }, set: { if !$0 { imageUploadError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(imageUploadError ?? "")
+        }
         .onChange(of: activeChunkId) { newValue in
             // Ensure the backlinks panel clears immediately when switching chunks,
             // including switches triggered by chunk splitting/merging.
@@ -204,6 +222,17 @@ struct EditorView: View {
         .task {
             syncFromStore()
         }
+    }
+
+    private func uploadImage(data: Data, filename: String, mimeType: String?) async throws -> String {
+        guard let baseURL = URL(string: backendURL) else {
+            throw AttachmentRepositoryError.invalidURL
+        }
+        return try await HTTPAttachmentRepository(baseURL: baseURL).uploadImage(
+            data: data,
+            filename: filename,
+            mimeType: mimeType
+        )
     }
 
     private func syncFromStore() {
@@ -998,11 +1027,14 @@ private struct ChunkRow: View {
     let onActivate: () -> Void
     let overlayText: NSAttributedString
     let overlayVisibleToMarkdown: [Int]
+    let imageBaseURL: URL?
     let onActivateAtMarkdownIndex: (Int) -> Void
     let onExitCommand: () -> Void
     let onMergeWithPrevious: () -> Void
     let onCursorLocationChange: (Int) -> Void
     let onAutoChunk: (String, Int) -> Void
+    let onUploadImage: (Data, String, String?) async throws -> String
+    let onUploadError: (String) -> Void
     let textBinding: Binding<String>
 
     var body: some View {
@@ -1017,7 +1049,9 @@ private struct ChunkRow: View {
                     onExitCommand: onExitCommand,
                     onMergeWithPrevious: onMergeWithPrevious,
                     measuredHeight: measuredHeight,
-                    onAutoChunk: onAutoChunk
+                    onAutoChunk: onAutoChunk,
+                    onUploadImage: onUploadImage,
+                    onUploadError: onUploadError
                 )
                     .frame(minHeight: 44, idealHeight: measuredHeight.wrappedValue, maxHeight: measuredHeight.wrappedValue)
                     .padding(6)
@@ -1042,8 +1076,8 @@ private struct ChunkRow: View {
                         onActivateAtMarkdownIndex(0)
                     }
                 } else {
-                    Markdown(chunk.text)
-                        .markdownTheme(.docC)
+                    Markdown(chunk.text, imageBaseURL: imageBaseURL)
+                        .grimoireMarkdownStyle()
                         .padding(.vertical, 2)
                         // Fallback: if the overlay ever fails to receive the click, still switch
                         // chunks immediately (cursor will default to start of chunk).
@@ -1101,6 +1135,8 @@ private struct ChunkTextEditor: NSViewRepresentable {
     let onMergeWithPrevious: () -> Void
     @Binding var measuredHeight: CGFloat
     let onAutoChunk: (String, Int) -> Void
+    let onUploadImage: (Data, String, String?) async throws -> String
+    let onUploadError: (String) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -1140,6 +1176,9 @@ private struct ChunkTextEditor: NSViewRepresentable {
             }
         }
         textView.onAutoChunk = onAutoChunk
+        textView.uploadImage = onUploadImage
+        textView.onUploadError = onUploadError
+        textView.registerForDraggedTypes([.fileURL, .tiff, .png, .init("public.jpeg"), .init("public.png")])
 
         container.attach(textView: textView)
         return container
@@ -1147,6 +1186,8 @@ private struct ChunkTextEditor: NSViewRepresentable {
 
     func updateNSView(_ nsView: ChunkEditorContainerView, context: Context) {
         guard let textView = nsView.textView else { return }
+        textView.uploadImage = onUploadImage
+        textView.onUploadError = onUploadError
         // While the user is actively editing (focused), do not overwrite the NSTextView's
         // content from SwiftUI state updates; doing so can reset the insertion point and
         // cause "caret jumps to end" while typing.
@@ -1240,7 +1281,10 @@ private final class ChunkNSTextView: NSTextView {
     var lastAppliedSelectionLocation: Int?
     var onHeightChange: ((CGFloat) -> Void)?
     var onAutoChunk: ((String, Int) -> Void)?
+    var uploadImage: ((Data, String, String?) async throws -> String)?
+    var onUploadError: ((String) -> Void)?
     private var isRequestingAutoChunk: Bool = false
+    private var isUploadingImage: Bool = false
 
     private func applyPendingSelectionIfNeeded() {
         guard let pendingSelection else { return }
@@ -1275,6 +1319,16 @@ private final class ChunkNSTextView: NSTextView {
 
         if event.modifierFlags.contains(.command),
            let chars = event.charactersIgnoringModifiers?.lowercased() {
+            if chars == "v" {
+                // NSTextView can disable paste for non-rich text when the clipboard doesn't
+                // contain a string; still allow Cmd+V to upload+insert images.
+                if event.modifierFlags.contains(.shift) {
+                    pasteAsPlainText(nil)
+                } else {
+                    paste(nil)
+                }
+                return
+            }
             if chars == "z" {
                 if event.modifierFlags.contains(.shift) {
                     undoManager?.redo()
@@ -1347,7 +1401,125 @@ private final class ChunkNSTextView: NSTextView {
     }
 
     override func paste(_ sender: Any?) {
+        if handlePasteboardImage(NSPasteboard.general) {
+            return
+        }
         super.paste(sender)
+        reportHeight()
+        requestAutoChunkIfNeeded()
+    }
+
+    override func pasteAsPlainText(_ sender: Any?) {
+        if handlePasteboardImage(NSPasteboard.general) {
+            return
+        }
+        super.pasteAsPlainText(sender)
+        reportHeight()
+        requestAutoChunkIfNeeded()
+    }
+
+    override func pasteAsRichText(_ sender: Any?) {
+        if handlePasteboardImage(NSPasteboard.general) {
+            return
+        }
+        super.pasteAsRichText(sender)
+        reportHeight()
+        requestAutoChunkIfNeeded()
+    }
+
+    override func doCommand(by selector: Selector) {
+        if selector == #selector(paste(_:)) || selector == #selector(pasteAsPlainText(_:)) {
+            paste(nil)
+            return
+        }
+        super.doCommand(by: selector)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        if handlePasteboardImage(sender.draggingPasteboard) {
+            return true
+        }
+        return super.performDragOperation(sender)
+    }
+
+    private func handlePasteboardImage(_ pasteboard: NSPasteboard) -> Bool {
+        if let extracted = PasteboardImageExtractor.extract(from: pasteboard) {
+            uploadAndInsert(data: extracted.data, filename: extracted.filename, mimeType: extracted.mimeType)
+            return true
+        }
+        if pasteboardProbablyContainsImage(pasteboard) {
+            onUploadError?("An image was detected on the clipboard, but Grimoire couldn’t read the image bytes.")
+            return true
+        }
+        return false
+    }
+
+    private func pasteboardProbablyContainsImage(_ pasteboard: NSPasteboard) -> Bool {
+        if pasteboard.canReadItem(withDataConformingToTypes: [UTType.image.identifier]) {
+            return true
+        }
+        if let items = pasteboard.pasteboardItems {
+            for item in items {
+                for type in item.types {
+                    if let ut = UTType(type.rawValue), ut.conforms(to: .image) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    private func uploadAndInsert(data: Data, filename: String, mimeType: String?) {
+        guard let uploadImage else {
+            onUploadError?("Image upload is not configured.")
+            return
+        }
+        isUploadingImage = true
+        let insertionRange = selectedRange()
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isUploadingImage = false }
+
+            do {
+                let urlPath = try await uploadImage(data, filename, mimeType)
+                self.applyPendingSelectionIfNeeded()
+                self.insertMarkdownImage(urlPath: urlPath, preferredRange: insertionRange)
+            } catch {
+                self.onUploadError?(error.localizedDescription)
+            }
+        }
+    }
+
+    private func insertMarkdownImage(urlPath: String, preferredRange: NSRange) {
+        let current = string as NSString
+        let length = current.length
+        let loc = max(0, min(preferredRange.location, length))
+        let range = NSRange(location: loc, length: 0)
+
+        let beforeChar = (loc > 0) ? current.substring(with: NSRange(location: loc - 1, length: 1)) : ""
+        let afterChar = (loc < length) ? current.substring(with: NSRange(location: loc, length: 1)) : ""
+
+        let leading = (loc > 0 && beforeChar != "\n") ? "\n\n" : ""
+        let trailing: String
+        if loc == length {
+            trailing = "\n"
+        } else {
+            trailing = (afterChar != "\n") ? "\n\n" : "\n"
+        }
+
+        let markdown = "\(leading)![](\(urlPath))\(trailing)"
+
+        if let textStorage {
+            textStorage.replaceCharacters(in: range, with: markdown)
+            didChangeText()
+        } else {
+            insertText(markdown, replacementRange: range)
+        }
+
+        let newLoc = min(loc + (markdown as NSString).length, (string as NSString).length)
+        setSelectedRange(NSRange(location: newLoc, length: 0))
         reportHeight()
         requestAutoChunkIfNeeded()
     }
@@ -1556,5 +1728,274 @@ private struct SelectionOverlayModel {
             return (chunk.id, last)
         }
         return nil
+    }
+}
+
+private enum GrimoireMarkdownImageConstants {
+    static let maxPixelSize = 2048
+    static let cacheCostLimit = 64 * 1024 * 1024
+    static let cacheCountLimit = 64
+    static let diskCacheLimit = 100 * 1024 * 1024
+    static let timeoutInterval: TimeInterval = 15
+}
+
+private final class GrimoireNetworkImageCache: NetworkImageCache {
+    private let cache = NSCache<NSURL, CGImage>()
+
+    init(
+        totalCostLimit: Int = GrimoireMarkdownImageConstants.cacheCostLimit,
+        countLimit: Int = GrimoireMarkdownImageConstants.cacheCountLimit
+    ) {
+        cache.totalCostLimit = totalCostLimit
+        cache.countLimit = countLimit
+    }
+
+    func image(for url: URL) -> CGImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    func setImage(_ image: CGImage, for url: URL) {
+        let cost = image.bytesPerRow * image.height
+        cache.setObject(image, forKey: url as NSURL, cost: cost)
+    }
+}
+
+private actor GrimoireNetworkImageLoader: NetworkImageLoader {
+    static let shared = GrimoireNetworkImageLoader()
+
+    private let cache: NetworkImageCache
+    private let data: (URL) async throws -> (Data, URLResponse)
+    private let maxPixelSize: Int
+    private var ongoingTasks: [URL: Task<CGImage, Error>] = [:]
+
+    init(
+        cache: NetworkImageCache = GrimoireNetworkImageCache(),
+        session: URLSession = .imageLoading(
+            memoryCapacity: 0,
+            diskCapacity: GrimoireMarkdownImageConstants.diskCacheLimit,
+            timeoutInterval: GrimoireMarkdownImageConstants.timeoutInterval
+        ),
+        maxPixelSize: Int = GrimoireMarkdownImageConstants.maxPixelSize
+    ) {
+        self.cache = cache
+        self.data = session.data(from:)
+        self.maxPixelSize = maxPixelSize
+    }
+
+    func image(from url: URL) async throws -> CGImage {
+        if let cached = cache.image(for: url) {
+            return cached
+        }
+        if let task = ongoingTasks[url] {
+            return try await task.value
+        }
+
+        let task = Task<CGImage, Error> { [data, cache, maxPixelSize] in
+            let (payload, response) = try await data(url)
+            guard let statusCode = (response as? HTTPURLResponse)?.statusCode,
+                  200..<300 ~= statusCode else {
+                throw URLError(.badServerResponse)
+            }
+
+            guard let image = Self.decodeImage(from: payload, maxPixelSize: maxPixelSize) else {
+                throw URLError(.cannotDecodeContentData)
+            }
+
+            cache.setImage(image, for: url)
+            return image
+        }
+
+        ongoingTasks[url] = task
+        do {
+            let image = try await task.value
+            ongoingTasks.removeValue(forKey: url)
+            return image
+        } catch {
+            ongoingTasks.removeValue(forKey: url)
+            throw error
+        }
+    }
+
+    private static func decodeImage(from data: Data, maxPixelSize: Int) -> CGImage? {
+        // Downsample to keep large attachments from ballooning memory.
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            kCGImageSourceShouldCacheImmediately: true,
+        ]
+
+        if let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+            return thumbnail
+        }
+
+        return nil
+    }
+}
+
+private struct GrimoireResizeToFit<Content: View>: View {
+    private let idealSize: CGSize
+    private let content: Content
+
+    init(idealSize: CGSize, @ViewBuilder content: () -> Content) {
+        self.idealSize = idealSize
+        self.content = content()
+    }
+
+    var body: some View {
+        if #available(macOS 13.0, *) {
+            GrimoireResizeToFitLayout { self.content }
+        } else {
+            GrimoireResizeToFitLegacy(idealSize: idealSize, content: content)
+        }
+    }
+}
+
+private struct GrimoireResizeToFitLegacy<Content: View>: View {
+    @State private var size: CGSize?
+
+    let idealSize: CGSize
+    let content: Content
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = sizeThatFits(proposal: proxy.size)
+            content
+                .frame(width: size.width, height: size.height)
+                .preference(key: GrimoireSizePreference.self, value: size)
+        }
+        .frame(width: size?.width, height: size?.height)
+        .onPreferenceChange(GrimoireSizePreference.self) { size in
+            self.size = size
+        }
+    }
+
+    private func sizeThatFits(proposal: CGSize) -> CGSize {
+        guard proposal.width < idealSize.width else {
+            return idealSize
+        }
+
+        let aspectRatio = idealSize.width / idealSize.height
+        return CGSize(width: proposal.width, height: proposal.width / aspectRatio)
+    }
+}
+
+private struct GrimoireSizePreference: PreferenceKey {
+    static let defaultValue: CGSize? = nil
+
+    static func reduce(value: inout CGSize?, nextValue: () -> CGSize?) {
+        value = value ?? nextValue()
+    }
+}
+
+@available(macOS 13.0, *)
+private struct GrimoireResizeToFitLayout: Layout {
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        guard let view = subviews.first else {
+            return .zero
+        }
+
+        var size = view.sizeThatFits(.unspecified)
+
+        if let width = proposal.width, size.width > width {
+            let aspectRatio = size.width / size.height
+            size.width = width
+            size.height = width / aspectRatio
+        }
+        return size
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard let view = subviews.first else { return }
+        view.place(at: bounds.origin, proposal: .init(bounds.size))
+    }
+}
+
+private struct GrimoireImageFailureView: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.red)
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.red)
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(NSColor.controlBackgroundColor))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.red.opacity(0.5), lineWidth: 1)
+        )
+    }
+}
+
+private struct GrimoireImageLoadingView: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView()
+            Text("Loading image...")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct GrimoireMarkdownImageProvider: ImageProvider {
+    func makeImage(url: URL?) -> some View {
+        Group {
+            if let url {
+                NetworkImage(url: url) { state in
+                    switch state {
+                    case .empty:
+                        GrimoireImageLoadingView()
+                    case .failure:
+                        GrimoireImageFailureView(message: "Image failed to load")
+                    case .success(let image, let idealSize):
+                        GrimoireResizeToFit(idealSize: idealSize) {
+                            image.resizable()
+                        }
+                    }
+                }
+            } else {
+                GrimoireImageFailureView(message: "Invalid image URL")
+            }
+        }
+    }
+}
+
+private struct GrimoireMarkdownInlineImageProvider: InlineImageProvider {
+    func image(with url: URL, label: String) async throws -> Image {
+        do {
+            let image = try await GrimoireNetworkImageLoader.shared.image(from: url)
+            return Image(image, scale: 1, label: Text(label))
+        } catch {
+            return Image(systemName: "exclamationmark.triangle.fill")
+        }
+    }
+}
+
+extension View {
+    func grimoireMarkdownStyle() -> some View {
+        self.markdownTheme(.docC)
+            .markdownImageProvider(GrimoireMarkdownImageProvider())
+            .markdownInlineImageProvider(GrimoireMarkdownInlineImageProvider())
+            .networkImageLoader(GrimoireNetworkImageLoader.shared)
     }
 }

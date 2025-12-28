@@ -3,6 +3,7 @@ import XCTest
 
 @testable import Grimoire
 
+@MainActor
 final class ViewsTests: XCTestCase {
     func testNoteNodeCodable() throws {
         let node = NoteNode(
@@ -82,6 +83,9 @@ private final class StubNoteRepository: NoteRepository {
     }
     func openProject(path: String) async throws -> ProjectInfo {
         ProjectInfo(name: (path as NSString).lastPathComponent, path: path, isActive: true)
+    }
+    func rebuildGlossary() async throws -> GlossaryRebuildResult {
+        GlossaryRebuildResult(terms: 0, spacyNotes: 0, fallbackNotes: 0)
     }
     func fetchTree() async throws -> [NoteNode] { [] }
     func fetchContent(noteId: String) async throws -> NoteDocument {

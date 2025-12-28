@@ -31,28 +31,30 @@ class TestFastAPIMinimal:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert data["service"] == "Grimoire Backend"
+        assert data["message"] == "Grimoire backend is running"
 
     def test_search_endpoint_structure(self):
         """Test the search endpoint returns proper structure."""
         # Mock the components to avoid actual model loading
         import main
 
-        # Create mock instances
-        mock_embedder = type(
-            "MockEmbedder", (), {"embed": lambda self, text: [0.1] * 384}
-        )()
-        mock_indexer = type(
-            "MockIndexer",
-            (),
-            {"search": lambda self, query_embedding, exclude_note_id, top_k: []},
-        )()
+        class DummySearch:
+            def search(self, request):
+                return []
 
-        # Temporarily replace the components
-        original_embedder = main.embedder
-        original_indexer = main.indexer
-        main.embedder = mock_embedder
-        main.indexer = mock_indexer
+        class DummyNotes:
+            def tree(self):
+                return {"notes": []}
+
+        class DummyState:
+            def __init__(self):
+                self._services = type("Services", (), {"search": DummySearch(), "notes": DummyNotes()})()
+
+            def current(self):
+                return self._services
+
+        original_state = main.state
+        main.state = DummyState()
 
         try:
             # Test search request
@@ -67,34 +69,26 @@ class TestFastAPIMinimal:
             assert isinstance(data["results"], list)
         finally:
             # Restore original components
-            main.embedder = original_embedder
-            main.indexer = original_indexer
+            main.state = original_state
 
     def test_update_note_endpoint_structure(self):
         """Test the update-note endpoint returns proper structure."""
         # Mock the components to avoid actual file operations
         import main
 
-        # Create mock instances
-        mock_chunker = type(
-            "MockChunker", (), {"chunk": lambda self, text, note_id: []}
-        )()
-        mock_embedder = type(
-            "MockEmbedder", (), {"embed": lambda self, text: [0.1] * 384}
-        )()
-        mock_indexer = type(
-            "MockIndexer",
-            (),
-            {"update_note": lambda self, note_id, chunk_embeddings: None},
-        )()
+        class DummyNotes:
+            def save_note(self, request):
+                return type("Record", (), {"id": request.note_id})()
 
-        # Temporarily replace the components
-        original_chunker = main.chunker
-        original_embedder = main.embedder
-        original_indexer = main.indexer
-        main.chunker = mock_chunker
-        main.embedder = mock_embedder
-        main.indexer = mock_indexer
+        class DummyState:
+            def __init__(self):
+                self._services = type("Services", (), {"notes": DummyNotes()})()
+
+            def current(self):
+                return self._services
+
+        original_state = main.state
+        main.state = DummyState()
 
         try:
             # Test update request
@@ -109,27 +103,31 @@ class TestFastAPIMinimal:
             data = response.json()
 
             # Should have success status
-            assert "status" in data
-            assert data["status"] == "success"
+            assert "success" in data
+            assert data["success"] is True
             assert "note_id" in data
             assert data["note_id"] == "test_note"
         finally:
             # Restore original components
-            main.chunker = original_chunker
-            main.embedder = original_embedder
-            main.indexer = original_indexer
+            main.state = original_state
 
     def test_get_all_notes_endpoint_structure(self):
         """Test the all-notes endpoint returns proper structure."""
-        # Mock the indexer
         import main
 
-        # Create mock instance
-        mock_indexer = type("MockIndexer", (), {"get_note_tree": lambda self: []})()
+        class DummyNotes:
+            def tree(self):
+                return {"notes": []}
 
-        # Temporarily replace the component
-        original_indexer = main.indexer
-        main.indexer = mock_indexer
+        class DummyState:
+            def __init__(self):
+                self._services = type("Services", (), {"notes": DummyNotes()})()
+
+            def current(self):
+                return self._services
+
+        original_state = main.state
+        main.state = DummyState()
 
         try:
             response = self.client.get("/all-notes")
@@ -142,7 +140,7 @@ class TestFastAPIMinimal:
             assert isinstance(data["notes"], list)
         finally:
             # Restore original component
-            main.indexer = original_indexer
+            main.state = original_state
 
     def test_get_note_endpoint_error_handling(self):
         """Test the get-note endpoint returns proper error for non-existent note."""

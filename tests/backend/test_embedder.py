@@ -36,15 +36,16 @@ class TestEmbedder:
         mock_model.encode.return_value = np.array([[0.1] * 384])
         mock_sentence_transformer.return_value = mock_model
 
-        # Load the model
-        self.embedder.load_model()
+        with patch("context_service._resolve_hf_snapshot", return_value="all-MiniLM-L6-v2"):
+            # Load the model
+            self.embedder.load_model()
 
-        # Verify model was loaded
-        assert self.embedder.model is not None
-        mock_sentence_transformer.assert_called_once_with("all-MiniLM-L6-v2")
-        assert self.embedder.embedding_dim == 384
-        # Reset the mock for other tests
-        self.embedder.model = None
+            # Verify model was loaded
+            assert self.embedder.model is not None
+            mock_sentence_transformer.assert_called_once_with("all-MiniLM-L6-v2")
+            assert self.embedder.embedding_dim == 384
+            # Reset the mock for other tests
+            self.embedder.model = None
 
     @patch("sentence_transformers.SentenceTransformer")
     def test_embed_single_text(self, mock_sentence_transformer):
@@ -58,14 +59,15 @@ class TestEmbedder:
         # Set embedding dimension
         self.embedder.embedding_dim = 4
 
-        # Test embedding without loading model (it will load automatically)
-        text = "This is a test sentence."
-        result = self.embedder.embed(text)
+        with patch("context_service._resolve_hf_snapshot", return_value="all-MiniLM-L6-v2"):
+            # Test embedding without loading model (it will load automatically)
+            text = "This is a test sentence."
+            result = self.embedder.embed(text)
 
-        # Verify
-        mock_model.encode.assert_called_with([text], convert_to_numpy=True)
-        assert result == expected_embedding[0].tolist()
-        assert len(result) == 4
+            # Verify
+            mock_model.encode.assert_called_with([text], convert_to_numpy=True)
+            assert result == expected_embedding[0].tolist()
+            assert len(result) == 4
 
     def test_embed_empty_text(self):
         """Test embedding empty text returns zero vector."""
@@ -89,15 +91,16 @@ class TestEmbedder:
         # Set embedding dimension
         self.embedder.embedding_dim = 4
 
-        # Test batch embedding without loading model
-        texts = ["First sentence.", "Second sentence."]
-        result = self.embedder.embed_batch(texts)
+        with patch("context_service._resolve_hf_snapshot", return_value="all-MiniLM-L6-v2"):
+            # Test batch embedding without loading model
+            texts = ["First sentence.", "Second sentence."]
+            result = self.embedder.embed_batch(texts)
 
-        # Verify
-        mock_model.encode.assert_called_with(texts, convert_to_numpy=True)
-        assert len(result) == 2
-        assert result[0] == expected_embeddings[0].tolist()
-        assert result[1] == expected_embeddings[1].tolist()
+            # Verify
+            mock_model.encode.assert_called_with(texts, convert_to_numpy=True)
+            assert len(result) == 2
+            assert result[0] == expected_embeddings[0].tolist()
+            assert result[1] == expected_embeddings[1].tolist()
 
     @patch("sentence_transformers.SentenceTransformer")
     def test_embed_batch_with_empty_texts(self, mock_sentence_transformer):
@@ -110,23 +113,24 @@ class TestEmbedder:
         # Set embedding dimension
         self.embedder.embedding_dim = 4
 
-        # Test batch embedding with empty text
-        texts = ["Valid text", "", "   "]
-        result = self.embedder.embed_batch(texts)
+        with patch("context_service._resolve_hf_snapshot", return_value="all-MiniLM-L6-v2"):
+            # Test batch embedding with empty text
+            texts = ["Valid text", "", "   "]
+            result = self.embedder.embed_batch(texts)
 
-        # Verify
-        mock_model.encode.assert_called_with(["Valid text"], convert_to_numpy=True)
-        assert len(result) == 3
-        assert result[0] == [0.1, 0.2, 0.3, 0.4]  # Valid text
-        assert result[1] == [0.0, 0.0, 0.0, 0.0]  # Empty text
-        assert result[2] == [0.0, 0.0, 0.0, 0.0]  # Whitespace-only text
+            # Verify
+            mock_model.encode.assert_called_with(["Valid text"], convert_to_numpy=True)
+            assert len(result) == 3
+            assert result[0] == [0.1, 0.2, 0.3, 0.4]  # Valid text
+            assert result[1] == [0.0, 0.0, 0.0, 0.0]  # Empty text
+            assert result[2] == [0.0, 0.0, 0.0, 0.0]  # Whitespace-only text
 
     def test_get_embedding_dimension(self):
         """Test getting embedding dimension."""
         # Mock model loading
         with patch.object(self.embedder, "model", Mock()):
             self.embedder.embedding_dim = 512
-            result = self.embedder.get_embedding_dimension()
+            result = self.embedder.get_embedding_dim()
 
             assert result == 512
 
@@ -216,20 +220,15 @@ class TestEmbedder:
         with pytest.raises(RuntimeError, match="Failed to load embeddings"):
             self.embedder.load_embeddings("nonexistent.npy")
 
-    @patch("sentence_transformers.SentenceTransformer")
-    def test_embed_exception_handling(self, mock_sentence_transformer):
+    def test_embed_exception_handling(self):
         """Test exception handling during embedding."""
-        # Mock model that raises an exception
-        mock_model = Mock()
-        mock_model.encode.side_effect = Exception("Model error")
-        mock_sentence_transformer.return_value = mock_model
+        with patch.object(self.embedder, "model", Mock()):
+            self.embedder.model.encode.side_effect = Exception("Model error")
+            self.embedder.embedding_dim = 384
 
-        # Set embedding dimension
-        self.embedder.embedding_dim = 384
-
-        # Test that exception is properly raised
-        with pytest.raises(RuntimeError, match="Failed to load model"):
-            self.embedder.embed("test text")
+            # Test that exception is properly raised
+            with pytest.raises(RuntimeError, match="Embedding failed"):
+                self.embedder.embed("test text")
 
     def test_embedding_consistency(self):
         """Test that embedding produces consistent results."""

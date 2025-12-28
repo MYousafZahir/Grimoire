@@ -101,6 +101,8 @@ The app communicates with the Python backend via REST API:
 - `GET /note/{note_id}` - Get note content
 - `POST /update-note` - Save note content and update embeddings
 - `POST /context` - Get cursor-conditioned semantic backlinks for current note
+- `POST /attachments` - Upload an image attachment (multipart form)
+- `GET /attachments/{filename}` - Serve a previously uploaded attachment
 
 ## Configuration
 
@@ -125,6 +127,7 @@ Settings are stored in UserDefaults and can be accessed via the Settings menu (`
 2. **Auto-Save**: Saves note content 2 seconds after last edit
 3. **Note Hierarchy**: Recursive tree structure with folder/note distinction
 4. **Semantic Backlinks**: Displays excerpts with similarity scores (0-100%)
+5. **Image Attachments**: Drag/drop or paste images into the plain-text editor to upload and insert markdown (`![](/attachments/...)`)
 
 ### Testing
 

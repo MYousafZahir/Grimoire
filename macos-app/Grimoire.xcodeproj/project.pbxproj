@@ -19,12 +19,30 @@
 			GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_NOTE_REPO /* NoteRepository.swift */; };
 			GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */; };
 			GRIM_DATA_GLOSSARY_REPO_BUILD /* GlossaryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_GLOSSARY_REPO /* GlossaryRepository.swift */; };
+			GRIM_DATA_ATTACHMENT_REPO_BUILD /* AttachmentRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_ATTACHMENT_REPO /* AttachmentRepository.swift */; };
+			GRIM_DATA_PASTEBOARD_EXTRACTOR_BUILD /* PasteboardImageExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_DATA_PASTEBOARD_EXTRACTOR /* PasteboardImageExtractor.swift */; };
 				GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_NOTE /* NoteStore.swift */; };
 				GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_BACKLINK /* BacklinksStore.swift */; };
 				GRIM_STORE_GLOSSARY_BUILD /* GlossaryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_STORE_GLOSSARY /* GlossaryStore.swift */; };
 				GRIM_INFOPLIST_BUILD /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = GRIM_INFOPLIST /* Info.plist */; };
 				GRIM_MARKDOWNUI_BUILD /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = GRIM_MARKDOWNUI_PROD /* MarkdownUI */; };
+				GRIM_TEST_BACKLINKS_BUILD /* BacklinksStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_TEST_BACKLINKS /* BacklinksStoreTests.swift */; };
+				GRIM_TEST_GRIMOIRE_APP_BUILD /* GrimoireAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_TEST_GRIMOIRE_APP /* GrimoireAppTests.swift */; };
+				GRIM_TEST_NOTE_STORE_BUILD /* NoteStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_TEST_NOTE_STORE /* NoteStoreTests.swift */; };
+				GRIM_TEST_PASTEBOARD_BUILD /* PasteboardImageExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_TEST_PASTEBOARD /* PasteboardImageExtractorTests.swift */; };
+				GRIM_TEST_VIEWS_BUILD /* ViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRIM_TEST_VIEWS /* ViewsTests.swift */; };
+				GRIM_TEST_XCTEST_BUILD /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = GRIM_XCTEST_FRAMEWORK /* XCTest.framework */; };
 		/* End PBXBuildFile section */
+
+	/* Begin PBXContainerItemProxy section */
+			GRIM_TESTS_APP_PROXY /* PBXContainerItemProxy */ = {
+				isa = PBXContainerItemProxy;
+				containerPortal = GRIM_PROJECT /* Project object */;
+				proxyType = 1;
+				remoteGlobalIDString = GRIM_TARGET_MAIN;
+				remoteInfo = Grimoire;
+			};
+	/* End PBXContainerItemProxy section */
 
 	/* Begin PBXFileReference section */
 			GRIM_APP /* GrimoireApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireApp.swift; sourceTree = "<group>"; };
@@ -39,11 +57,20 @@
 			GRIM_DATA_NOTE_REPO /* NoteRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteRepository.swift; sourceTree = "<group>"; };
 			GRIM_DATA_SEARCH_REPO /* SearchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepository.swift; sourceTree = "<group>"; };
 			GRIM_DATA_GLOSSARY_REPO /* GlossaryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossaryRepository.swift; sourceTree = "<group>"; };
+			GRIM_DATA_ATTACHMENT_REPO /* AttachmentRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentRepository.swift; sourceTree = "<group>"; };
+			GRIM_DATA_PASTEBOARD_EXTRACTOR /* PasteboardImageExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardImageExtractor.swift; sourceTree = "<group>"; };
 			GRIM_STORE_NOTE /* NoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStore.swift; sourceTree = "<group>"; };
 			GRIM_STORE_BACKLINK /* BacklinksStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklinksStore.swift; sourceTree = "<group>"; };
 			GRIM_STORE_GLOSSARY /* GlossaryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossaryStore.swift; sourceTree = "<group>"; };
 			GRIM_INFOPLIST /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 			GRIM_PRODUCT /* Grimoire.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Grimoire.app; sourceTree = BUILT_PRODUCTS_DIR; };
+			GRIM_TEST_BACKLINKS /* BacklinksStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklinksStoreTests.swift; sourceTree = "<group>"; };
+			GRIM_TEST_GRIMOIRE_APP /* GrimoireAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireAppTests.swift; sourceTree = "<group>"; };
+			GRIM_TEST_NOTE_STORE /* NoteStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStoreTests.swift; sourceTree = "<group>"; };
+			GRIM_TEST_PASTEBOARD /* PasteboardImageExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardImageExtractorTests.swift; sourceTree = "<group>"; };
+			GRIM_TEST_VIEWS /* ViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewsTests.swift; sourceTree = "<group>"; };
+			GRIM_TEST_PRODUCT /* GrimoireTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GrimoireTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+			GRIM_XCTEST_FRAMEWORK /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
 	/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +82,14 @@
 				);
 				runOnlyForDeploymentPostprocessing = 0;
 			};
+			GRIM_TESTS_FRAMEWORKS /* Frameworks */ = {
+				isa = PBXFrameworksBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					GRIM_TEST_XCTEST_BUILD /* XCTest.framework in Frameworks */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
 	/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -63,7 +98,9 @@
 			children = (
 				GRIM_GROUP_SOURCES,
 				GRIM_GROUP_RESOURCES,
+				GRIM_GROUP_TESTS,
 				GRIM_GROUP_PRODUCTS,
+				GRIM_GROUP_FRAMEWORKS,
 			);
 			sourceTree = "<group>";
 		};
@@ -109,6 +146,8 @@
 					GRIM_DATA_NOTE_REPO,
 					GRIM_DATA_SEARCH_REPO,
 					GRIM_DATA_GLOSSARY_REPO,
+					GRIM_DATA_ATTACHMENT_REPO,
+					GRIM_DATA_PASTEBOARD_EXTRACTOR,
 				);
 				name = Data;
 				path = Data;
@@ -138,8 +177,30 @@
 			isa = PBXGroup;
 			children = (
 				GRIM_PRODUCT,
+				GRIM_TEST_PRODUCT,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		GRIM_GROUP_TESTS = {
+			isa = PBXGroup;
+			children = (
+				GRIM_TEST_BACKLINKS,
+				GRIM_TEST_GRIMOIRE_APP,
+				GRIM_TEST_NOTE_STORE,
+				GRIM_TEST_PASTEBOARD,
+				GRIM_TEST_VIEWS,
+			);
+			name = Tests;
+			path = ../tests/macos-app/GrimoireTests;
+			sourceTree = "<group>";
+		};
+		GRIM_GROUP_FRAMEWORKS = {
+			isa = PBXGroup;
+			children = (
+				GRIM_XCTEST_FRAMEWORK,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -165,6 +226,23 @@
 				productReference = GRIM_PRODUCT /* Grimoire.app */;
 				productType = "com.apple.product-type.application";
 			};
+		GRIM_TARGET_TESTS /* GrimoireTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = GRIM_CONFIG_LIST_TESTS /* Build configuration list for PBXNativeTarget "GrimoireTests" */;
+			buildPhases = (
+				GRIM_TESTS_SOURCES_PHASE /* Sources */,
+				GRIM_TESTS_FRAMEWORKS /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				GRIM_TESTS_DEPENDENCY /* PBXTargetDependency */,
+			);
+			name = GrimoireTests;
+			productName = GrimoireTests;
+			productReference = GRIM_TEST_PRODUCT /* GrimoireTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 	/* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -177,6 +255,10 @@
 				TargetAttributes = {
 					GRIM_TARGET_MAIN = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					GRIM_TARGET_TESTS = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = GRIM_TARGET_MAIN;
 					};
 				};
 			};
@@ -197,6 +279,7 @@
 				projectRoot = "";
 				targets = (
 				GRIM_TARGET_MAIN /* Grimoire */,
+				GRIM_TARGET_TESTS /* GrimoireTests */,
 			);
 			};
 	/* End PBXProject section */
@@ -248,13 +331,35 @@
 					GRIM_DATA_NOTE_REPO_BUILD /* NoteRepository.swift in Sources */,
 					GRIM_DATA_SEARCH_REPO_BUILD /* SearchRepository.swift in Sources */,
 					GRIM_DATA_GLOSSARY_REPO_BUILD /* GlossaryRepository.swift in Sources */,
+					GRIM_DATA_ATTACHMENT_REPO_BUILD /* AttachmentRepository.swift in Sources */,
+					GRIM_DATA_PASTEBOARD_EXTRACTOR_BUILD /* PasteboardImageExtractor.swift in Sources */,
 					GRIM_STORE_NOTE_BUILD /* NoteStore.swift in Sources */,
 					GRIM_STORE_BACKLINK_BUILD /* BacklinksStore.swift in Sources */,
 					GRIM_STORE_GLOSSARY_BUILD /* GlossaryStore.swift in Sources */,
 				);
 				runOnlyForDeploymentPostprocessing = 0;
 			};
+			GRIM_TESTS_SOURCES_PHASE /* Sources */ = {
+				isa = PBXSourcesBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					GRIM_TEST_BACKLINKS_BUILD /* BacklinksStoreTests.swift in Sources */,
+					GRIM_TEST_GRIMOIRE_APP_BUILD /* GrimoireAppTests.swift in Sources */,
+					GRIM_TEST_NOTE_STORE_BUILD /* NoteStoreTests.swift in Sources */,
+					GRIM_TEST_PASTEBOARD_BUILD /* PasteboardImageExtractorTests.swift in Sources */,
+					GRIM_TEST_VIEWS_BUILD /* ViewsTests.swift in Sources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
 	/* End PBXSourcesBuildPhase section */
+
+	/* Begin PBXTargetDependency section */
+			GRIM_TESTS_DEPENDENCY /* PBXTargetDependency */ = {
+				isa = PBXTargetDependency;
+				target = GRIM_TARGET_MAIN;
+				targetProxy = GRIM_TESTS_APP_PROXY /* PBXContainerItemProxy */;
+			};
+	/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		GRIM_CONFIG_DEBUG /* Debug */ = {
@@ -379,6 +484,54 @@
 			};
 			name = Release;
 		};
+		GRIM_TESTS_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Tests-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.grimoire.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Grimoire.app/Contents/MacOS/Grimoire";
+			};
+			name = Debug;
+		};
+		GRIM_TESTS_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Tests-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.grimoire.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Grimoire.app/Contents/MacOS/Grimoire";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -396,6 +549,15 @@
 			buildConfigurations = (
 				GRIM_CONFIG_DEBUG /* Debug */,
 				GRIM_CONFIG_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		GRIM_CONFIG_LIST_TESTS /* Build configuration list for PBXNativeTarget "GrimoireTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				GRIM_TESTS_DEBUG /* Debug */,
+				GRIM_TESTS_RELEASE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
