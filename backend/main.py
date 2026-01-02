@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
+from uuid import uuid4
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import traceback
 
 from models import (
@@ -42,6 +45,17 @@ app.add_middleware(
 
 state = GrimoireAppState()
 
+_ALLOWED_IMAGE_EXTENSIONS: set[str] = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".heic",
+    ".heif",
+}
+_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
 
 @app.get("/", tags=["health"])
 async def root():
@@ -51,6 +65,66 @@ async def root():
 @app.get("/health", tags=["health"])
 async def health():
     return {"status": "ok", "message": "Grimoire backend is running"}
+
+
+@app.post("/attachments", tags=["attachments"])
+async def upload_attachment(file: UploadFile = File(...)):
+    try:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Missing filename")
+        ext = Path(file.filename).suffix.lower()
+        if ext not in _ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Unsupported image type: {ext or '(none)'}")
+        if file.content_type and not file.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail=f"Unsupported content type: {file.content_type}")
+
+        data = await file.read()
+        if not data:
+            raise HTTPException(status_code=400, detail="Empty upload")
+        if len(data) > _MAX_ATTACHMENT_BYTES:
+            raise HTTPException(status_code=413, detail="Attachment too large")
+
+        services = state.current()
+        attachments_dir = services.project.attachments_dir
+        attachments_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"{uuid4().hex}{ext}"
+        dest = (attachments_dir / filename).resolve()
+        root = attachments_dir.resolve()
+        if root not in dest.parents:
+            raise HTTPException(status_code=400, detail="Invalid attachment path")
+
+        await asyncio.to_thread(dest.write_bytes, data)
+        return {"url": f"/attachments/{filename}", "filename": filename}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/attachments/{filename}", tags=["attachments"])
+async def get_attachment(filename: str):
+    try:
+        if not filename:
+            raise HTTPException(status_code=400, detail="Missing attachment name")
+        if Path(filename).name != filename:
+            raise HTTPException(status_code=400, detail="Invalid attachment path")
+
+        services = state.current()
+        root = services.project.attachments_dir.resolve()
+        path = (root / filename).resolve()
+        if root not in path.parents:
+            raise HTTPException(status_code=400, detail="Invalid attachment path")
+        if not path.exists() or not path.is_file():
+            raise HTTPException(status_code=404, detail="Attachment not found")
+
+        return FileResponse(path=str(path))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
 
 @app.get("/projects", response_model=ProjectsResponsePayload, tags=["projects"])
 async def list_projects():

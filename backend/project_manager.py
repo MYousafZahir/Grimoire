@@ -26,6 +26,10 @@ class ProjectInfo:
         return self.root / "notes"
 
     @property
+    def attachments_dir(self) -> Path:
+        return self.root / "attachments"
+
+    @property
     def search_dir(self) -> Path:
         return self.root / "search"
 
@@ -112,6 +116,7 @@ class ProjectManager:
     def ensure_layout(self, project: ProjectInfo) -> ProjectInfo:
         project.root.mkdir(parents=True, exist_ok=True)
         project.notes_dir.mkdir(parents=True, exist_ok=True)
+        project.attachments_dir.mkdir(parents=True, exist_ok=True)
         project.search_dir.mkdir(parents=True, exist_ok=True)
         project.context_dir.mkdir(parents=True, exist_ok=True)
         project.glossary_dir.mkdir(parents=True, exist_ok=True)

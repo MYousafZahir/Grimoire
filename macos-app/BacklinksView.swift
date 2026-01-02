@@ -6,7 +6,13 @@ struct BacklinksView: View {
     @EnvironmentObject private var noteStore: NoteStore
     @Binding var selectedNoteId: String?
 
+    @AppStorage("backendURL") private var backendURL: String = "http://127.0.0.1:8000"
+
     @State private var selectedResultId: String? = nil
+
+    private var resolvedBackendURL: URL? {
+        URL(string: backendURL)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,7 +68,12 @@ struct BacklinksView: View {
             } else {
                 List(selection: $selectedResultId) {
                     ForEach(backlinksStore.results, id: \.id) { result in
-                        BacklinkRow(result: result, onReveal: reveal, selectedNoteId: $selectedNoteId)
+                        BacklinkRow(
+                            result: result,
+                            imageBaseURL: resolvedBackendURL,
+                            onReveal: reveal,
+                            selectedNoteId: $selectedNoteId
+                        )
                             .tag(result.id)
                             .contextMenu {
                                 Button("Open Note") {
@@ -140,6 +151,7 @@ struct BacklinksView: View {
 
 struct BacklinkRow: View {
     let result: Backlink
+    let imageBaseURL: URL?
     let onReveal: (Backlink) -> Void
     @Binding var selectedNoteId: String?
 
@@ -178,8 +190,8 @@ struct BacklinkRow: View {
                     )
             }
 
-            Markdown(excerptMarkdown)
-                .markdownTheme(.docC)
+            Markdown(excerptMarkdown, imageBaseURL: imageBaseURL)
+                .grimoireMarkdownStyle()
                 .foregroundColor(.primary)
                 .padding(.leading, 20)
 

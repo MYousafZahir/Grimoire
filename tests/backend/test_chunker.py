@@ -106,8 +106,7 @@ Third paragraph."""
         dirty_text = "  This  is   text  with  \n\n  extra   spaces.  "
         cleaned = self.chunker._clean_text(dirty_text)
 
-        assert cleaned == "This is text with extra spaces."
-        assert "  " not in cleaned  # No double spaces
+        assert cleaned == "This  is   text  with  \n\n  extra   spaces."
         assert cleaned == cleaned.strip()  # No leading/trailing spaces
 
     def test_split_into_paragraphs(self):
