@@ -644,6 +644,7 @@ struct EditorView: View {
         let md = markdown as NSString
         let mdLength = md.length
 
+        let lineBreakGlyph = "\u{2028}"
         var result = ""
         var mapping: [Int] = [0]
 
@@ -729,12 +730,10 @@ struct EditorView: View {
 
             let ch = md.character(at: index)
 
-            // Newline handling: preserve paragraph breaks, treat soft breaks as spaces.
+            // Newline handling: preserve paragraph breaks, treat soft breaks as line breaks.
             if ch == 0x0A {
                 let next = peekASCII(1)
-                if inCodeBlock {
-                    appendVisible("\n", mdAdvanceTo: index + 1)
-                } else if next == 0x0A {
+                if !inCodeBlock, next == 0x0A {
                     // Paragraph break: collapse consecutive newlines into a single paragraph break.
                     var j = index
                     while j < mdLength, md.character(at: j) == 0x0A {
@@ -744,16 +743,8 @@ struct EditorView: View {
                     index = j
                     atLineStart = true
                     continue
-                } else {
-                    // Hard break: two spaces before newline.
-                    let prev1 = (index - 1 >= 0) ? md.character(at: index - 1) : 0
-                    let prev2 = (index - 2 >= 0) ? md.character(at: index - 2) : 0
-                    if prev1 == 0x20, prev2 == 0x20 {
-                        appendVisible("\n", mdAdvanceTo: index + 1)
-                    } else {
-                        appendVisible(" ", mdAdvanceTo: index + 1)
-                    }
                 }
+                appendVisible(lineBreakGlyph, mdAdvanceTo: index + 1)
                 index += 1
                 atLineStart = true
                 continue
@@ -1994,6 +1985,7 @@ private struct GrimoireMarkdownInlineImageProvider: InlineImageProvider {
 extension View {
     func grimoireMarkdownStyle() -> some View {
         self.markdownTheme(.docC)
+            .markdownSoftBreakMode(.lineBreak)
             .markdownImageProvider(GrimoireMarkdownImageProvider())
             .markdownInlineImageProvider(GrimoireMarkdownInlineImageProvider())
             .networkImageLoader(GrimoireNetworkImageLoader.shared)
